@@ -2,6 +2,7 @@ import { Community, EcdsaKey, ChainTree, CID, CommunityMessenger, setDataTransac
 import { Envelope } from "tupelo-wasm-sdk/node_modules/tupelo-messages";
 import debug from 'debug';
 import Messages from "../messages";
+import { EventEmitter } from "events";
 
 const log = debug("decentracar:service")
 
@@ -11,14 +12,14 @@ interface IDecentraCarServiceOptions {
     did:string
 }
 
-const registrationTopic = 'decentracar-certifications'
+export const registrationTopic = 'decentracar-certifications'
 
 /**
  * The DecentraCarService listens to the certification topic and certifies that a passenger/driver is actually
  * part of the community. This is a demo so it just auto certifies anyone that asks, but in a realworld situation
  * this would be an offline process that verifies identity, etc.
  */
-export class DecentraCarService {
+export class DecentraCarService extends EventEmitter {
     community:Community
     key:EcdsaKey
     tree?:ChainTree
@@ -26,6 +27,7 @@ export class DecentraCarService {
     private messenger?:CommunityMessenger
 
     constructor(opts:IDecentraCarServiceOptions) {
+        super()
         this.community = opts.community
         this.key = opts.key
         this.did = opts.did
@@ -61,6 +63,7 @@ export class DecentraCarService {
                 await this.community.playTransactions(this.tree, [setDataTransaction("/_decentracar/validateddrivers/" + did, true)])
                 log("registered new driver")
                 this.messenger.publish(did, Messages.serialize({type:"didRegistration", did: did} as Messages.didRegistration))
+                this.emit('driver', did)
                 break;
         }
     }
