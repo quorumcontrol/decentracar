@@ -1,50 +1,59 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import './App.css';
 import { Map, Marker, Popup, TileLayer } from 'react-leaflet';
 import { getAppCommunity } from './decentracar/util/appcommunity';
-import { randomGeo, mapCenter } from './decentracar/util/locations';
 import { Driver } from './decentracar/driver';
+import { Simulation} from './decentracar/simulation'
 
-const position: [number, number] = [52.491362, 13.362029]
+const position: [number, number] = [52.491362, 13.362029];
 
+
+const DriverMarker = ({name,lat,long}:{name:string, lat:number, long:number})=> {
+  return (
+      <Marker key={name} position={[lat, long]}>
+          <Popup>A Driver: {name}</Popup>
+      </Marker>
+  )
+}
 
 const App: React.FC = () => {
 
-  const [driver,setDriver] = useState(null as null|Driver)
-  const [loc,setLoc] = useState(position)
+  const [simulation,setSimulation] = useState(null as null|Simulation)
+  const [tick,setTick] = useState(0)
 
-  const initialize = async ()=> {
-    if (!driver) {
-      let c = await getAppCommunity()
-      const rndLoc = randomGeo(mapCenter, 1000) //supposed to be 1km away
-      const d = new Driver({
-          community: c,
-          location: rndLoc,
-      })
-      setInterval(()=> {
-        d.tick()
-        setLoc([d.location.y, d.location.x])
-      },1000)
-      setDriver(d)
-    }
-   
+  const handleStart = async () => {
+    const simulation = new Simulation({
+      community: getAppCommunity(),
+      driverCount: 2,
+    })
+    setSimulation(simulation)
+    simulation.on('tick', (num) =>{
+      setTick(num)
+    })
+    simulation.start()
   }
 
-  useEffect(()=> {
-    initialize()
-  })
+  let markers:JSX.Element[] = []
+  if (simulation) {
+    for (let d of simulation.drivers) {
+      markers = markers.concat(<DriverMarker name={d.name} lat={d.location.y} long={d.location.x}/>)
+    }
+  }
 
   return (
     <div className="App">
-          {driver &&
+      <p>tick: {tick}</p>
+      {!simulation && 
+        <button onClick={handleStart}>Start</button>
+      }
+          {simulation &&
       <Map zoom={12} center={position}>
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution="&copy; <a href=&quot;http://osm.org/copyright&quot;>OpenStreetMap</a> contributors"
         />
-        <Marker position={loc}>
-          <Popup>A pretty CSS3 popup.<br />Easily customizable.</Popup>
-        </Marker>
+        {console.log(markers)}
+        {markers}
       </Map>
           }
     </div>

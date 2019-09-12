@@ -7,6 +7,7 @@ const log = debug("appcommunity")
 let _appPromise:Promise<Community>
 
 export function getAppCommunity(): Promise<Community> {
+   log("getAppCommunity")
    if (_appPromise !== undefined) {
        return _appPromise
    }

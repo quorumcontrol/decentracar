@@ -8,22 +8,22 @@ import {randomGeo, mapCenter} from '../util/locations';
 
 const log = debug('driver')
 
-const MAX_SPEED = .00833, // approximately 100km per degree so 50km/h, in seconds,  is approximately (50*(1/100))/60  
-      MIN_SPEED =  .00016, // approximately 100km per degree so 10km/h, in seconds,  is approximately (10*(1/100))/60  
+const MAX_SPEED = .000533, 
+      MIN_SPEED =  .000016, 
 	  MAX_FORCE = .0001
 
 interface IDriverOpts {
-    community:Community
+    community:Promise<Community>
     location: Vector
 }
 
 export class Driver extends EventEmitter {
-    community:Community
+    community:Promise<Community>
     tree?:ChainTree
     key?:EcdsaKey
     id?:string
     private messenger?:CommunityMessenger
-    private name?:string
+    name:string
     location:Vector
     velocity:Vector
     acceleration:Vector
@@ -36,14 +36,15 @@ export class Driver extends EventEmitter {
         this.velocity = new Vector(0, 0);
         this.acceleration = new Vector(0, 0);
         this.wandering = new Vector(.0001,.0001);
+        this.name = faker.name.findName();
     }
 
     async start() {
         log("starting driver at ", this.location)
+        const community = await this.community
         this.key = await EcdsaKey.generate()
         this.id = await Tupelo.ecdsaPubkeyToDid(this.key.publicKey)
-        this.messenger = new CommunityMessenger("integrationtest", 32, this.key, Buffer.from(this.id, 'utf8'), this.community.node.pubsub)
-        this.name = faker.name.findName();
+        this.messenger = new CommunityMessenger("integrationtest", 32, this.key, Buffer.from(this.id, 'utf8'), community.node.pubsub)
     }
 
     tick() {
@@ -90,18 +91,18 @@ export class Driver extends EventEmitter {
 	}
 }
 
-const doRun = async ()=> {
-    const c = await getAppCommunity()
-    const rndLoc = randomGeo(mapCenter, 1000) //supposed to be 1km away
-    const d = new Driver({
-        community: c,
-        location: rndLoc,
-    })
-    await d.start()
-    setInterval(()=> {
-        d.tick()
-    }, 1000)
-}
+// const doRun = async ()=> {
+//     const c = getAppCommunity()
+//     const rndLoc = randomGeo(mapCenter, 1000) //supposed to be 1km away
+//     const d = new Driver({
+//         community: c,
+//         location: rndLoc,
+//     })
+//     await d.start()
+//     setInterval(()=> {
+//         d.tick()
+//     }, 1000)
+// }
 
 // const topic = 'decentracar-certifications'
 
@@ -139,8 +140,8 @@ const doRun = async ()=> {
 //     return "published"
 // }
 
-doRun().then((res) => {
-    console.log("doRun finished: ", res)
-}, (err)=> {
-    console.error("error: ", err)
-})
+// doRun().then((res) => {
+//     console.log("doRun finished: ", res)
+// }, (err)=> {
+//     console.error("error: ", err)
+// })
