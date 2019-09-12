@@ -4,16 +4,15 @@ import debug from 'debug';
 
 const log = debug("appcommunity")
 
-let didSetDefault = false
+let _appPromise:Promise<Community>
 
-export async function getAppCommunity(): Promise<Community> {
-    if (!didSetDefault) {
-        log("getting fresh community")
+export function getAppCommunity(): Promise<Community> {
+   if (_appPromise !== undefined) {
+       return _appPromise
+   }
+    _appPromise = new Promise(async (resolve,reject)=> {
         const c = await Community.freshLocalTestCommunity()
-        log("setting default")
-        Community.setDefault(c)
-        didSetDefault = true
-    }
-    log("returning getDefault")
-    return Community.getDefault()
+        resolve(c)
+    })
+    return _appPromise
 }
