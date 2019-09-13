@@ -6,7 +6,7 @@ import debug from 'debug';
 import { minLong, maxLong, minLat, maxLat } from '../util/locations';
 import { Rider } from '../rider';
 import { Envelope } from 'tupelo-wasm-sdk/node_modules/tupelo-messages';
-import Messages, { certificationTopic } from '../messages';
+import Messages, { certificationTopic, ridersTopic } from '../messages';
 
 const log = debug('decentracar:driver')
 
@@ -30,8 +30,10 @@ export class Driver extends EventEmitter {
     acceleration: Vector
     wandering: Vector
 
-    acceptedRider?: Rider
-    passenger?: Rider
+    riderLocation?: Vector
+    acceptedRider?: string
+    destination?: Vector
+    offering: boolean
     registered: boolean
 
     private messenger?: CommunityMessenger
@@ -46,6 +48,7 @@ export class Driver extends EventEmitter {
         this.wandering = new Vector(.0001, .0001);
         this.name = faker.name.findName();
         this.registered = false;
+        this.offering = false;
     }
 
     start() {
@@ -64,6 +67,7 @@ export class Driver extends EventEmitter {
             this.id = id
             this.messenger = new CommunityMessenger("integrationtest", 32, this.key, Buffer.from(this.id, 'utf8'), community.node.pubsub)
             this.messenger.subscribe(this.id, this.handleSelfMessages.bind(this))
+            this.messenger.subscribe(ridersTopic, this.handleRidersMessage.bind(this))
             await this.registerAsDriver()
             log(this.name, " starting at ", this.location)
             resolve(this)
@@ -84,6 +88,29 @@ export class Driver extends EventEmitter {
         } as Messages.didRegistration))
     }
 
+    async handleRidersMessage(env:Envelope) {
+        if (this.offering) {
+            return // ignore other messages for now
+        }
+        if (this.messenger === undefined || this.tree === undefined || this.id === undefined) {
+            throw new Error("need an id, tree and messenger to registerAsDriver")
+        }
+        // TODO: make a decision if the car should offer or not
+        this.offering = true
+        const c = await this.community
+        await c.playTransactions(this.tree, [setDataTransaction("_decentracar/offering", Buffer.from(env.getFrom_asU8()).toString())])
+        log(this.name, " offering a ride")
+
+        const msg:Messages.rideRequest = Messages.deserialize(env.getPayload_asU8())
+
+        this.messenger.publish(Buffer.from(env.getFrom_asU8()).toString(), Messages.serialize({
+            type: "offer",
+            driverDid: this.id,
+            driverLocation: [this.location.x, this.location.y],
+        } as Messages.offer))
+        this.riderLocation = new Vector(msg.location[0], msg.location[1])
+    }
+
     async handleSelfMessages(env: Envelope) {
         const msg: Messages.dcMessage = Messages.deserialize(env.getPayload_asU8())
         switch (msg.type) {
@@ -97,10 +124,9 @@ export class Driver extends EventEmitter {
     async tick() {
         await this.start()
         // do all the calculations
-        if (this.acceptedRider !== undefined) {
-            this.emit('pickingUpRider')
-            log(this.name, " going to ", this.acceptedRider.name)
-            this.follow(this.acceptedRider.location, .001) //TODO: not sure what the arrival number should be
+        if (this.riderLocation !== undefined) {
+            log(this.name, " moving to rider @ ", this.riderLocation)
+            this.follow(this.riderLocation, .001) //TODO: not sure what the arrival number should be
         } else {
             this.emit('wandering')
             this.wander() // for now just wander

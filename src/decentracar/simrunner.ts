@@ -7,6 +7,7 @@ async function doRun() {
     const c = getAppCommunity()
     const sim = new Simulation({
         driverCount: 5,
+        riderProbability: 50,
         community: c
     })
     sim.on('tick', (num:number) => {

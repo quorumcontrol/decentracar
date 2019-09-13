@@ -3,9 +3,11 @@ import { Community, EcdsaKey, ChainTree } from 'tupelo-wasm-sdk'
 import { randomGeo, mapCenter } from './util/locations'
 import { EventEmitter } from 'events'
 import { DecentraCarService } from './company/service'
+import { Rider } from './rider'
 
 interface ISimulationOpts {
     driverCount: number
+    riderProbability: number // how many ticks out of 100 will a rider be created?
     community: Promise<Community>
 }
 
@@ -14,6 +16,7 @@ export class Simulation extends EventEmitter {
     private interval?: number
     community: Promise<Community>
     tickCount: number
+    riderProbability:number
 
     constructor(opts: ISimulationOpts) {
         super()
@@ -26,6 +29,7 @@ export class Simulation extends EventEmitter {
                 location: randomGeo(mapCenter, 5000)
             })
         }
+        this.riderProbability = opts.riderProbability
         this.drivers = drivers
     }
 
@@ -61,8 +65,19 @@ export class Simulation extends EventEmitter {
         for (let d of this.drivers) {
             d.tick()
         }
+        this.possiblyCreateRider()
         this.tickCount++
         this.emit('tick', this.tickCount);
+    }
+
+    async possiblyCreateRider() {
+        if (Math.random() * 100 > this.riderProbability) {
+            const r = new Rider({
+                community: this.community,
+                location: randomGeo(mapCenter, 5000)
+            })
+            r.start()
+        }
     }
 
     async tickEvery(milliseconds:number) {

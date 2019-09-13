@@ -15,7 +15,7 @@ interface IDecentraCarServiceOptions {
 }
 
 /**
- * The DecentraCarService listens to the certification topic and certifies that a passenger/driver is actually
+ * The DecentraCarService listens to the certification topic and certifies that a rider/driver is actually
  * part of the community. This is a demo so it just auto certifies anyone that asks, but in a realworld situation
  * this would be an offline process that verifies identity, etc.
  */
@@ -60,8 +60,18 @@ export class DecentraCarService extends EventEmitter {
         })
         let type = await tree.resolve("/tree/data/_decentracar/type".split("/"))
         switch (<string>type.value) {
-            case "passenger":
-                console.log("passenger assertion");
+            case "rider":
+                    await this.syncher.send(async ()=> {
+                        if (this.tree === undefined) {
+                            throw new Error("tree must be defined")
+                        }
+                        await this.community.playTransactions(this.tree, [setDataTransaction("/_decentracar/validatedriders/" + did, true)])
+                        return
+                    })
+                    log("registered new rider: ", did)
+                    this.messenger.publish(did, Messages.serialize({type:"didRegistration", did: did} as Messages.didRegistration))
+                    this.emit('rider', did)
+                    break;
                 break;
             case "driver":
                 await this.syncher.send(async ()=> {

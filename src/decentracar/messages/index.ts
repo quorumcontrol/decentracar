@@ -24,6 +24,12 @@ export namespace Messages {
         type:string
     }
  
+    export interface offer extends dcMessage {
+        type: "offer"
+        driverDid: string
+        driverLocation: [number,number]
+    }
+
     export interface didRegistration extends dcMessage {
         type: "didRegistration"
         did:string

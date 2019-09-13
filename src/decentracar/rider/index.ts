@@ -1,10 +1,10 @@
-import { Community, ChainTree, EcdsaKey, CommunityMessenger } from "tupelo-wasm-sdk";
+import { Community, ChainTree, EcdsaKey, CommunityMessenger, setDataTransaction } from "tupelo-wasm-sdk";
 import Vector from "../util/vector";
 import { EventEmitter } from "events";
 import faker from 'faker';
 import { Driver } from "../driver";
 import debug from 'debug';
-import Messages, { ridersTopic } from "../messages";
+import Messages, { ridersTopic, certificationTopic } from "../messages";
 import { Envelope } from "tupelo-wasm-sdk/node_modules/tupelo-messages";
 
 const log = debug('decentracar:rider')
@@ -22,6 +22,7 @@ export class Rider extends EventEmitter {
     id?:string
     name:string
     location:Vector
+    registered:boolean
 
     acceptedDriver?:Driver
 
@@ -33,6 +34,7 @@ export class Rider extends EventEmitter {
         this.community = opts.community
         this.location = opts.location
         this.name = faker.name.findName();
+        this.registered = false;
     }
 
     start() {
@@ -50,21 +52,44 @@ export class Rider extends EventEmitter {
             }
             this.id = id
             this.messenger = new CommunityMessenger("integrationtest", 32, this.key, Buffer.from(this.id, 'utf8'), community.node.pubsub)
-            log(this.name, " asking for cars at ", this.location)
+            await this.registerAsRider()
             resolve(this)
+            this.askForRide()
         })
         return this.startPromise
     }
 
+    async registerAsRider() {
+        log(this.name, " registering")
+        if (this.messenger === undefined || this.tree === undefined) {
+            throw new Error("need a tree and messenger to registerAsDriver")
+        }
+        const c = await this.community
+        await c.playTransactions(this.tree, [setDataTransaction("_decentracar/type", "rider")])
+        await c.nextUpdate()
+        this.messenger.publish(certificationTopic, Messages.serialize({
+            type: "didRegistration",
+            did: this.id,
+        } as Messages.didRegistration))
+    }
+
     // the drivers should send messages directly here
     async handleSelfMessages(env:Envelope) {
-
+        const msg: Messages.dcMessage = Messages.deserialize(env.getPayload_asU8())
+        switch (msg.type) {
+            case "didRegistration":
+                this.registered = true // for now, for real we'd have to check this
+                log(this.name, " registered")
+                this.askForRide()
+                break;
+        }
     }
 
     async askForRide() {
         if (this.messenger === undefined || this.id == null) {
             throw new Error("must have a messenger and an id")
         }
+        log(this.name, " asking for ride")
 
         this.messenger.publish(ridersTopic, Messages.serialize({
             type: "rideRequest",
