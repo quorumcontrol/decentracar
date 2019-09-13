@@ -3,16 +3,16 @@ import { Envelope } from "tupelo-wasm-sdk/node_modules/tupelo-messages";
 import debug from 'debug';
 import Messages from "../messages";
 import { EventEmitter } from "events";
+import {certificationTopic} from '../messages'
+import { SimpleSyncher } from "../util/actor";
 
-const log = debug("decentracar:service")
+const log = debug("decentracar:company")
 
 interface IDecentraCarServiceOptions {
     community:Community
     key:EcdsaKey
     did:string
 }
-
-export const registrationTopic = 'decentracar-certifications'
 
 /**
  * The DecentraCarService listens to the certification topic and certifies that a passenger/driver is actually
@@ -25,43 +25,53 @@ export class DecentraCarService extends EventEmitter {
     tree?:ChainTree
     private did:string
     private messenger?:CommunityMessenger
+    private syncher:SimpleSyncher
 
     constructor(opts:IDecentraCarServiceOptions) {
         super()
         this.community = opts.community
         this.key = opts.key
         this.did = opts.did
+        this.syncher = new SimpleSyncher()
     }
 
     async start() {
         await this._findOrCreateTree()
         this.messenger = new CommunityMessenger("integrationtest", 32, this.key, (await this.id()), this.community.node.pubsub)
-        return this.messenger.subscribe(registrationTopic, this.handleRegistration.bind(this))
+        return this.messenger.subscribe(certificationTopic, this.handleRegistration.bind(this))
     }
 
     private async handleRegistration(env:Envelope) {
         if (this.tree === undefined || this.messenger == undefined) {
             throw new Error("handling a message on a service without a tree or messenger")
         }
-        const payload = env.getPayload_asU8()
-        const buf = Buffer.from(payload)
-        const did = buf.toString('utf8')
-        log("did received: ", did)
-        let tip = await this.community.getTip(did)
+        const msg:Messages.didRegistration = Messages.deserialize(env.getPayload_asU8())
+        const did = msg.did
+        let tip
+        try {
+            tip = await this.community.getTip(did)
+        } catch(err) {
+            log(err, "/ no tip found for ", did)
+            return
+        }
         let tree = new ChainTree({
             tip: new CID(tip),
             store: this.community.blockservice,
         })
         let type = await tree.resolve("/tree/data/_decentracar/type".split("/"))
-        console.log("type: ", type)
         switch (<string>type.value) {
             case "passenger":
                 console.log("passenger assertion");
                 break;
             case "driver":
-                log("new driver registering: ", did)
-                await this.community.playTransactions(this.tree, [setDataTransaction("/_decentracar/validateddrivers/" + did, true)])
-                log("registered new driver")
+                await this.syncher.send(async ()=> {
+                    if (this.tree === undefined) {
+                        throw new Error("tree must be defined")
+                    }
+                    await this.community.playTransactions(this.tree, [setDataTransaction("/_decentracar/validateddrivers/" + did, true)])
+                    return
+                })
+                log("registered new driver: ", did)
                 this.messenger.publish(did, Messages.serialize({type:"didRegistration", did: did} as Messages.didRegistration))
                 this.emit('driver', did)
                 break;

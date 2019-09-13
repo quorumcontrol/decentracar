@@ -1,7 +1,12 @@
 import Vector from './vector'
 
 // lon/Lat (not lat,long) maps to x,y
-export const mapCenter = new Vector(13.362029, 52.491362)
+export const mapCenter = new Vector(13.362029, 52.491362) // Berlin longitude,latitude
+
+export const maxLat = 53.4
+export const minLat = 51.5
+export const maxLong = 14.3
+export const minLong = 12.4
 
 // see https://stackoverflow.com/questions/31192451/generate-random-geo-coordinates-within-specific-radius-from-seed-point
 export function randomGeo(center:Vector, radius:number):Vector {

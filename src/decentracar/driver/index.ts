@@ -1,147 +1,162 @@
-import { EcdsaKey, ChainTree, Community, CommunityMessenger, Tupelo } from 'tupelo-wasm-sdk';
+import { EcdsaKey, ChainTree, Community, CommunityMessenger, Tupelo, setDataTransaction } from 'tupelo-wasm-sdk';
 import faker from 'faker';
 import Vector from '../util/vector'
 import { EventEmitter } from 'events';
 import debug from 'debug';
-import {getAppCommunity} from '../util/appcommunity';
-import {randomGeo, mapCenter} from '../util/locations';
+import { minLong, maxLong, minLat, maxLat } from '../util/locations';
+import { Rider } from '../rider';
+import { Envelope } from 'tupelo-wasm-sdk/node_modules/tupelo-messages';
+import Messages, { certificationTopic } from '../messages';
 
-const log = debug('driver')
+const log = debug('decentracar:driver')
 
-const MAX_SPEED = .000533, 
-      MIN_SPEED =  .000016, 
-	  MAX_FORCE = .0001
+const MAX_SPEED = .000533,
+    MIN_SPEED = .000016,
+    MAX_FORCE = .0001
 
 interface IDriverOpts {
-    community:Promise<Community>
+    community: Promise<Community>
     location: Vector
 }
 
 export class Driver extends EventEmitter {
-    community:Promise<Community>
-    tree?:ChainTree
-    key?:EcdsaKey
-    id?:string
-    private messenger?:CommunityMessenger
-    name:string
-    location:Vector
-    velocity:Vector
-    acceleration:Vector
-    wandering:Vector
+    community: Promise<Community>
+    tree?: ChainTree
+    key?: EcdsaKey
+    id?: string
+    name: string
+    location: Vector
+    velocity: Vector
+    acceleration: Vector
+    wandering: Vector
 
-    constructor(opts:IDriverOpts) {
+    acceptedRider?: Rider
+    passenger?: Rider
+    registered: boolean
+
+    private messenger?: CommunityMessenger
+    private startPromise?: Promise<Driver>
+
+    constructor(opts: IDriverOpts) {
         super()
         this.community = opts.community
         this.location = opts.location
         this.velocity = new Vector(0, 0);
         this.acceleration = new Vector(0, 0);
-        this.wandering = new Vector(.0001,.0001);
+        this.wandering = new Vector(.0001, .0001);
         this.name = faker.name.findName();
+        this.registered = false;
     }
 
-    async start() {
-        log("starting driver at ", this.location)
-        const community = await this.community
-        this.key = await EcdsaKey.generate()
-        this.id = await Tupelo.ecdsaPubkeyToDid(this.key.publicKey)
-        this.messenger = new CommunityMessenger("integrationtest", 32, this.key, Buffer.from(this.id, 'utf8'), community.node.pubsub)
+    start() {
+        if (this.startPromise !== undefined) {
+            return this.startPromise
+        }
+        this.startPromise = new Promise(async (resolve, reject) => {
+            const community = await this.community
+            this.key = await EcdsaKey.generate()
+            this.tree = await ChainTree.newEmptyTree(community.blockservice, this.key)
+            const id = await this.tree.id()
+            if (id === null) {
+                reject(new Error("error getting id"))
+                return
+            }
+            this.id = id
+            this.messenger = new CommunityMessenger("integrationtest", 32, this.key, Buffer.from(this.id, 'utf8'), community.node.pubsub)
+            this.messenger.subscribe(this.id, this.handleSelfMessages.bind(this))
+            await this.registerAsDriver()
+            log(this.name, " starting at ", this.location)
+            resolve(this)
+        })
+        return this.startPromise
     }
 
-    tick() {
+    async registerAsDriver() {
+        if (this.messenger === undefined || this.tree === undefined) {
+            throw new Error("need a tree and messenger to registerAsDriver")
+        }
+        const c = await this.community
+        await c.playTransactions(this.tree, [setDataTransaction("_decentracar/type", "driver")])
+        await c.nextUpdate()
+        this.messenger.publish(certificationTopic, Messages.serialize({
+            type: "didRegistration",
+            did: this.id,
+        } as Messages.didRegistration))
+    }
+
+    async handleSelfMessages(env: Envelope) {
+        const msg: Messages.dcMessage = Messages.deserialize(env.getPayload_asU8())
+        switch (msg.type) {
+            case "didRegistration":
+                this.registered = true // for now, for real we'd have to check this
+                log(this.name, " registered")
+                break;
+        }
+    }
+
+    async tick() {
+        await this.start()
         // do all the calculations
-        this.wander() // for now just wander
+        if (this.acceptedRider !== undefined) {
+            this.emit('pickingUpRider')
+            log(this.name, " going to ", this.acceptedRider.name)
+            this.follow(this.acceptedRider.location, .001) //TODO: not sure what the arrival number should be
+        } else {
+            this.emit('wandering')
+            this.wander() // for now just wander
+        }
+
         this.update()
     }
 
     wander() {
-		if (Math.random() < .05) {
+        if (Math.random() < .05) {
             this.wandering.rotate(Math.PI * 2 * Math.random());
         }
-        log("this.wandering: ", this.wandering)
-		this.velocity.add(this.wandering);
+        log(this.name, " wandering")
+        this.velocity.add(this.wandering);
     }
 
-    //TODO:
-    // boundaries() {
-	// 	if (this.location.x < 50)
-	// 		this.applyForce(new Vector(this.maxforce*3, 0));
+    follow(target: Vector, arrive: number) {
+        var dest = target.copy().sub(this.location);
+        var d = dest.dist(this.location);
 
-	// 	if (this.location.x > sea.width - 50)
-	// 		this.applyForce(new Vector(-this.maxforce*3, 0));
+        if (d < arrive) {
+            dest.setMag(d / arrive * MAX_SPEED);
+        } else {
+            dest.setMag(MAX_SPEED);
+        }
 
-	// 	if (this.location.y < 50)
-	// 		this.applyForce(new Vector(0, this.maxforce*3));
+        this.applyForce(dest.limit(MAX_FORCE * 2));
+    }
 
-	// 	if (this.location.y > sea.height - 50)
-	// 		this.applyForce(new Vector(0, -this.maxforce*3));
-	// }
+    boundaries() {
+        if (this.location.x < minLong)
+            this.applyForce(new Vector(MAX_FORCE * 3, 0));
+
+        if (this.location.x > maxLong)
+            this.applyForce(new Vector(MAX_FORCE * 3, 0));
+
+        if (this.location.y < minLat)
+            this.applyForce(new Vector(0, MAX_FORCE * 3));
+
+        if (this.location.y > maxLat)
+            this.applyForce(new Vector(0, -MAX_FORCE * 3));
+    }
+
+    applyForce(f: Vector) {
+        this.acceleration.add(f);
+    }
 
     update() {
-		this.velocity.add(this.acceleration);
-	    this.velocity.limit(MAX_SPEED);
-	    if(this.velocity.mag() < MIN_SPEED) {
+        this.velocity.add(this.acceleration);
+        this.velocity.limit(MAX_SPEED);
+        if (this.velocity.mag() < MIN_SPEED) {
             this.velocity.setMag(MIN_SPEED);
         }
-        log("velocity: ", this.velocity)
-	    this.location.add(this.velocity);
+        this.location.add(this.velocity);
 
-	    // reset acceleration
+        // reset acceleration
         this.acceleration.mul(0);
-        log("new location: ", this.location)
-	}
+    }
 }
-
-// const doRun = async ()=> {
-//     const c = getAppCommunity()
-//     const rndLoc = randomGeo(mapCenter, 1000) //supposed to be 1km away
-//     const d = new Driver({
-//         community: c,
-//         location: rndLoc,
-//     })
-//     await d.start()
-//     setInterval(()=> {
-//         d.tick()
-//     }, 1000)
-// }
-
-// const topic = 'decentracar-certifications'
-
-// const doRun = async () => {
-//     let c = await Community.freshLocalTestCommunity()
-//     let key = await EcdsaKey.generate()
-//     let tree = await ChainTree.newEmptyTree(c.blockservice, key)
-//     await c.playTransactions(tree, [setDataTransaction("_decentracar/type", "driver")])
-//     const id = await tree.id()
-//     if (id === null) {
-//         throw new Error("unknown tree id")
-//     }
-//     console.log("id: ", id)
-
-//     const messenger = new CommunityMessenger("integrationtest", 32, key, Buffer.from(id, 'utf8'), c.node.pubsub)
-
-
-//     await messenger.publish(topic, Buffer.from(id,'utf8'))
-//     // c.node.pubsub.subscribe(topic, async (msg: IPubSubMessage) => {
-//     //     const obj = dagCBOR.utils.deserialize(msg.data)
-//     //     console.log("received: ", obj)
-//     //     let tip = c.getTip(obj)
-//     //     let tree = new ChainTree({
-//     //         tip: tip,
-//     //         store: c.blockservice,
-//     //     })
-//     //     let type = await tree.resolve("/tree/data/_decentracar/type".split("/"))
-//     //     switch (<string>type.value) {
-//     //         case "driver":
-//     //             console.log("driver assertion!");
-//     //         case "passenger":
-//     //             console.log("passenger assertion");
-//     //     }
-//     // })
-//     return "published"
-// }
-
-// doRun().then((res) => {
-//     console.log("doRun finished: ", res)
-// }, (err)=> {
-//     console.error("error: ", err)
-// })

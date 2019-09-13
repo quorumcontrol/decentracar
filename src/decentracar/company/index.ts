@@ -6,8 +6,6 @@ import { getAppCommunity } from '../util/appcommunity';
 
 var log = debug("decentracar:index")
 
-const topic = 'decentracar-certifications'
-
 const doRun = async () => {
     log("doRun")
     let c = await getAppCommunity()
