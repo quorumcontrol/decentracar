@@ -13,6 +13,7 @@ interface ISimulationOpts {
 
 export class Simulation extends EventEmitter {
     drivers: Driver[]
+    riders: Rider[]
     private interval?: number
     community: Promise<Community>
     tickCount: number
@@ -31,6 +32,7 @@ export class Simulation extends EventEmitter {
         }
         this.riderProbability = opts.riderProbability
         this.drivers = drivers
+        this.riders = []
     }
 
     stop() {
@@ -77,6 +79,7 @@ export class Simulation extends EventEmitter {
                 location: randomGeo(mapCenter, 5000)
             })
             r.start()
+            this.riders.push(r)
         }
     }
 
