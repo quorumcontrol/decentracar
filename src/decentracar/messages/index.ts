@@ -10,6 +10,15 @@ export const certificationTopic = 'decentracar-certifications'
 export const driverLocationTopic = 'decentracar-drivers'
 export const ridersTopic = 'decentracar-riders'
 
+export enum messageType {
+    offer,
+    offerReject,
+    offerAccept,
+    didRegistration,
+    rideRequest,
+    rideRequestResponse
+}
+
 export namespace Messages {
 
     export function serialize(msg:any):Uint8Array{
@@ -21,29 +30,40 @@ export namespace Messages {
     }
 
     export interface dcMessage {
-        type:string
+        type:messageType
     }
  
     export interface offer extends dcMessage {
-        type: "offer"
+        type: messageType.offer
         driverDid: string
         driverLocation: [number,number]
     }
 
     export interface didRegistration extends dcMessage {
-        type: "didRegistration"
+        type: messageType.didRegistration
         did:string
     }
 
     export interface rideRequest extends dcMessage {
-        type: "rideRequest"
+        type: messageType.rideRequest
         riderDID:string
         location:[number,number]
     }
 
     export interface rideRequestResponse extends dcMessage {
-        type: "rideRequestResponse"
+        type: messageType.rideRequestResponse
         driverDID:string
+        location:[number,number]
+    }
+
+    export interface offerReject extends dcMessage {
+        type: messageType.offerReject
+        offer: offer
+    }
+
+    export interface offerAccept extends dcMessage {
+        type: messageType.offerAccept
+        riderDid: string
         location:[number,number]
     }
 }

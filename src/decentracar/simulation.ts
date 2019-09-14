@@ -71,7 +71,7 @@ export class Simulation extends EventEmitter {
     }
 
     async possiblyCreateRider() {
-        if (Math.random() * 100 > this.riderProbability) {
+        if (Math.random() * 100 < this.riderProbability) {
             const r = new Rider({
                 community: this.community,
                 location: randomGeo(mapCenter, 5000)

@@ -1,17 +1,17 @@
 import { Community, EcdsaKey, ChainTree, CID, CommunityMessenger, setDataTransaction } from "tupelo-wasm-sdk";
 import { Envelope } from "tupelo-wasm-sdk/node_modules/tupelo-messages";
 import debug from 'debug';
-import Messages from "../messages";
+import Messages, { messageType } from "../messages";
 import { EventEmitter } from "events";
-import {certificationTopic} from '../messages'
+import { certificationTopic } from '../messages'
 import { SimpleSyncher } from "../util/actor";
 
 const log = debug("decentracar:company")
 
 interface IDecentraCarServiceOptions {
-    community:Community
-    key:EcdsaKey
-    did:string
+    community: Community
+    key: EcdsaKey
+    did: string
 }
 
 /**
@@ -20,19 +20,19 @@ interface IDecentraCarServiceOptions {
  * this would be an offline process that verifies identity, etc.
  */
 export class DecentraCarService extends EventEmitter {
-    community:Community
-    key:EcdsaKey
-    tree?:ChainTree
-    private did:string
-    private messenger?:CommunityMessenger
-    private syncher:SimpleSyncher
+    community: Community
+    key: EcdsaKey
+    tree?: ChainTree
+    private did: string
+    private messenger?: CommunityMessenger
+    private syncher: SimpleSyncher
 
-    constructor(opts:IDecentraCarServiceOptions) {
+    constructor(opts: IDecentraCarServiceOptions) {
         super()
         this.community = opts.community
         this.key = opts.key
         this.did = opts.did
-        this.syncher = new SimpleSyncher()
+        this.syncher = new SimpleSyncher("company: ")
     }
 
     async start() {
@@ -41,16 +41,16 @@ export class DecentraCarService extends EventEmitter {
         return this.messenger.subscribe(certificationTopic, this.handleRegistration.bind(this))
     }
 
-    private async handleRegistration(env:Envelope) {
+    private async handleRegistration(env: Envelope) {
         if (this.tree === undefined || this.messenger == undefined) {
             throw new Error("handling a message on a service without a tree or messenger")
         }
-        const msg:Messages.didRegistration = Messages.deserialize(env.getPayload_asU8())
+        const msg: Messages.didRegistration = Messages.deserialize(env.getPayload_asU8())
         const did = msg.did
         let tip
         try {
             tip = await this.community.getTip(did)
-        } catch(err) {
+        } catch (err) {
             log(err, "/ no tip found for ", did)
             return
         }
@@ -61,20 +61,21 @@ export class DecentraCarService extends EventEmitter {
         let type = await tree.resolve("/tree/data/_decentracar/type".split("/"))
         switch (<string>type.value) {
             case "rider":
-                    await this.syncher.send(async ()=> {
-                        if (this.tree === undefined) {
-                            throw new Error("tree must be defined")
-                        }
-                        await this.community.playTransactions(this.tree, [setDataTransaction("/_decentracar/validatedriders/" + did, true)])
-                        return
-                    })
-                    log("registered new rider: ", did)
-                    this.messenger.publish(did, Messages.serialize({type:"didRegistration", did: did} as Messages.didRegistration))
-                    this.emit('rider', did)
-                    break;
+                log("new rider registration request")
+                await this.syncher.send(() => {
+                    log("syncher executing from rider")
+                    if (this.tree === undefined) {
+                        throw new Error("tree must be defined")
+                    }
+                    log("playing transactions from rider")
+                    return this.community.playTransactions(this.tree, [setDataTransaction("/_decentracar/validatedriders/" + did, true)])
+                })
+                log("registered new rider: ", did)
+                this.messenger.publish(did, Messages.serialize({ type: messageType.didRegistration, did: did } as Messages.didRegistration))
+                this.emit('rider', did)
                 break;
             case "driver":
-                await this.syncher.send(async ()=> {
+                await this.syncher.send(async () => {
                     if (this.tree === undefined) {
                         throw new Error("tree must be defined")
                     }
@@ -82,13 +83,15 @@ export class DecentraCarService extends EventEmitter {
                     return
                 })
                 log("registered new driver: ", did)
-                this.messenger.publish(did, Messages.serialize({type:"didRegistration", did: did} as Messages.didRegistration))
+                this.messenger.publish(did, Messages.serialize({ type: messageType.didRegistration, did: did } as Messages.didRegistration))
                 this.emit('driver', did)
                 break;
+            default:
+                log("unknown message type: ", type.value)
         }
     }
 
-    private async id():Promise<Uint8Array> {
+    private async id(): Promise<Uint8Array> {
         if (this.tree === undefined) {
             throw new Error("no tree")
         }
@@ -103,7 +106,7 @@ export class DecentraCarService extends EventEmitter {
         let tip
         try {
             tip = await this.community.getTip(this.did)
-        } catch(e) {
+        } catch (e) {
             if (e === "not found") {
                 tip == null
             }

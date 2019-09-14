@@ -1,4 +1,6 @@
+import debug from 'debug'
 
+const log = debug("util:syncher")
 
 interface queuedFunction {
     fn:Function
@@ -14,30 +16,34 @@ interface queuedFunction {
 export class SimpleSyncher {
     private queue:queuedFunction[]
     private started:boolean
-    constructor() {
+    private name?:string
+    constructor(name?:string) {
         this.started = false
         this.queue = []
+        this.name = name
     }
 
     private async run() {
         const queuedFn = this.queue.pop()
         if (queuedFn === undefined) {
-            // console.log('stopping syncher')
+            log(this.name, ' stopping syncher')
             this.started = false
             return
         }
         try {
-            // console.log('syncer run fn')
+            log(this.name, ' run fn', queuedFn.fn.toString())
             const resp = await queuedFn.fn()
-            // console.log('syncer')
+            log(this.name, ' finish fn')
             queuedFn.res(resp)
         } catch(err) {
-            // console.error('rejecting: ', err)
+            log(this.name, ' rejecting: ', err)
             queuedFn.rej(err)
         }
         if (this.queue.length > 0) {
-            // console.log("syncher queueing another")
-            await this.run()
+            log(this.name, "syncher queueing another")
+            this.run()
+        } else {
+            this.started = false
         }
     }
 
@@ -49,9 +55,12 @@ export class SimpleSyncher {
                 rej:reject,
             })
             if (!this.started) {
+                log(this.name, " not started, starting")
                 this.started = true
                 this.run()
+                return
             }
+            log(this.name, ' run already started')
         })
        
         return p
