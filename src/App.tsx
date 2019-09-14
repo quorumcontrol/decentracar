@@ -1,17 +1,40 @@
 import React, { useState } from 'react';
 import './App.css';
-import { Map, Marker, Popup, TileLayer } from 'react-leaflet';
+import { Map, Marker, Popup, TileLayer, Tooltip} from 'react-leaflet';
 import { getAppCommunity } from './decentracar/util/appcommunity';
-import { Driver } from './decentracar/driver';
 import { Simulation} from './decentracar/simulation'
+import {Icon, Point} from 'leaflet'
 
 const position: [number, number] = [52.491362, 13.362029];
 
+const driverIcon = new Icon({
+  iconUrl: require('./imgs/driver.png'),
+  iconRetinaUrl: require('./imgs/driver.png'),
+  iconSize: new Point(30, 30),
+  className: 'leaflet-div-icon'
+});
+
+const riderIcon = new Icon({
+  iconUrl: require('./imgs/rider.png'),
+  iconRetinaUrl: require('./imgs/rider.png'),
+  iconSize: new Point(30, 30),
+  className: 'leaflet-div-icon'
+})
 
 const DriverMarker = ({name,lat,long}:{name:string, lat:number, long:number})=> {
   return (
-      <Marker key={name} position={[lat, long]}>
+      <Marker key={name} position={[lat, long]} icon={driverIcon}>
           <Popup>A Driver: {name}</Popup>
+          <Tooltip>Driver</Tooltip>
+      </Marker>
+  )
+}
+
+const RiderMarker = ({name,lat,long}:{name:string, lat:number, long:number})=> {
+  return (
+      <Marker key={name} position={[lat, long]} icon={riderIcon}>
+          <Popup>A Rider: {name}</Popup>
+          <Tooltip>Rider</Tooltip>
       </Marker>
   )
 }
@@ -24,20 +47,27 @@ const App: React.FC = () => {
   const handleStart = async () => {
     const simulation = new Simulation({
       community: getAppCommunity(),
-      driverCount: 2,
+      driverCount: 10,
+      riderProbability: 10,
     })
     setSimulation(simulation)
     simulation.on('tick', (num) =>{
       setTick(num)
     })
     simulation.start()
+    simulation.tickEvery(1000)
   }
 
   let markers:JSX.Element[] = []
   if (simulation) {
     for (let d of simulation.drivers) {
-      markers = markers.concat(<DriverMarker name={d.name} lat={d.location.y} long={d.location.x}/>)
+      markers.push(<DriverMarker name={d.name} lat={d.location.y} long={d.location.x}/>)
     }
+
+    for (let r of simulation.riders) {
+      markers.push(<RiderMarker name={r.name} lat={r.location.y} long={r.location.x}/>)
+    }
+
   }
 
   return (

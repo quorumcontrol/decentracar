@@ -1,4 +1,5 @@
 /// <reference path="../../@types/ipld-dag-cbor/index.d.ts" />
+/* eslint-disable */
 
 import dagCBOR from 'ipld-dag-cbor'
 
@@ -21,7 +22,6 @@ export enum messageType {
     dropoff,
 }
 
-export namespace Messages {
 
     export function serialize(msg:any):Uint8Array{
         return dagCBOR.util.serialize(msg)
@@ -80,6 +80,3 @@ export namespace Messages {
         type: messageType.dropoff,
         driverDid: string
     }
-}
-
-export default Messages

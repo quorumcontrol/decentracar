@@ -1,7 +1,7 @@
 import { Community, EcdsaKey, ChainTree, CID, CommunityMessenger, setDataTransaction } from "tupelo-wasm-sdk";
 import { Envelope } from "tupelo-wasm-sdk/node_modules/tupelo-messages";
 import debug from 'debug';
-import Messages, { messageType } from "../messages";
+import { messageType, didRegistration, deserialize, serialize } from "../messages";
 import { EventEmitter } from "events";
 import { certificationTopic } from '../messages'
 import { SimpleSyncher } from "../util/actor";
@@ -45,7 +45,7 @@ export class DecentraCarService extends EventEmitter {
         if (this.tree === undefined || this.messenger == undefined) {
             throw new Error("handling a message on a service without a tree or messenger")
         }
-        const msg: Messages.didRegistration = Messages.deserialize(env.getPayload_asU8())
+        const msg: didRegistration = deserialize(env.getPayload_asU8())
         const did = msg.did
         let tip
         try {
@@ -71,7 +71,7 @@ export class DecentraCarService extends EventEmitter {
                     return this.community.playTransactions(this.tree, [setDataTransaction("/_decentracar/validatedriders/" + did, true)])
                 })
                 log("registered new rider: ", did)
-                this.messenger.publish(did, Messages.serialize({ type: messageType.didRegistration, did: did } as Messages.didRegistration))
+                this.messenger.publish(did, serialize({ type: messageType.didRegistration, did: did } as didRegistration))
                 this.emit('rider', did)
                 break;
             case "driver":
@@ -83,7 +83,7 @@ export class DecentraCarService extends EventEmitter {
                     return
                 })
                 log("registered new driver: ", did)
-                this.messenger.publish(did, Messages.serialize({ type: messageType.didRegistration, did: did } as Messages.didRegistration))
+                this.messenger.publish(did, serialize({ type: messageType.didRegistration, did: did } as didRegistration))
                 this.emit('driver', did)
                 break;
             default:
@@ -108,7 +108,7 @@ export class DecentraCarService extends EventEmitter {
             tip = await this.community.getTip(this.did)
         } catch (e) {
             if (e === "not found") {
-                tip == null
+                // do nothing
             }
         }
         if (CID.isCID(tip)) {

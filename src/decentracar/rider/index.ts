@@ -4,7 +4,7 @@ import { EventEmitter } from "events";
 import faker from 'faker';
 import { Driver } from "../driver";
 import debug from 'debug';
-import Messages, { ridersTopic, certificationTopic, messageType } from "../messages";
+import { ridersTopic, certificationTopic, messageType, offer, riding, deserialize, serialize, didRegistration, offerReject, offerAccept, rideRequest, dcMessage } from "../messages";
 import { Envelope } from "tupelo-wasm-sdk/node_modules/tupelo-messages";
 import { SimpleSyncher } from "../util/actor";
 import { randomGeo } from "../util/locations";
@@ -32,6 +32,7 @@ export class Rider extends EventEmitter {
     private startPromise?: Promise<Rider>
     private messenger?: CommunityMessenger
     private syncher:SimpleSyncher
+    private offers:offer[]
 
     constructor(opts: IRiderOpts) {
         super();
@@ -41,6 +42,7 @@ export class Rider extends EventEmitter {
         this.name = faker.name.findName();
         this.registered = false;
         this.syncher = new SimpleSyncher();
+        this.offers = []
     }
 
     start() {
@@ -84,15 +86,15 @@ export class Rider extends EventEmitter {
         })
         await c.nextUpdate()
         log(this.name, " publishing did registration")
-        this.messenger.publish(certificationTopic, Messages.serialize({
+        this.messenger.publish(certificationTopic, serialize({
             type: messageType.didRegistration,
             did: this.id,
-        } as Messages.didRegistration))
+        } as didRegistration))
     }
 
     // the drivers should send messages directly here
     async handleSelfMessages(env: Envelope) {
-        const msg: Messages.dcMessage = Messages.deserialize(env.getPayload_asU8())
+        const msg: dcMessage = deserialize(env.getPayload_asU8())
         switch (msg.type) {
             case messageType.didRegistration:
                 this.registered = true // for now, for real we'd have to check this
@@ -100,10 +102,10 @@ export class Rider extends EventEmitter {
                 this.askForRide()
                 break;
             case messageType.offer:
-                this.possiblyAcceptRide(msg as Messages.offer)
+                this.possiblyAcceptRide(msg as offer)
                 break;
             case messageType.riding:
-                const typedMsg = msg as Messages.riding
+                const typedMsg = msg as riding
                 this.location = new Vector(typedMsg.location[0], typedMsg.location[1])
                 break;
             case messageType.dropoff:
@@ -112,24 +114,26 @@ export class Rider extends EventEmitter {
         }
     }
 
-    possiblyAcceptRide(msg: Messages.offer) {
+    possiblyAcceptRide(msg: offer) {
         if (this.messenger === undefined) {
             throw new Error("must have a messenger and an id")
         }
         if (this.acceptedDriver !== undefined) {
             log(this.name, " rejecting rider ", msg.driverDid)
-            this.messenger.publish(msg.driverDid, Messages.serialize({
+            this.messenger.publish(msg.driverDid, serialize({
                 type: messageType.offerReject,
                 offer: msg,
-            } as Messages.offerReject))
+            } as offerReject))
             return
         }
+
+        //TODO: accept a few offers and take the closest one        
 
          // otherwise accept this driver
         this.acceptRide(msg)
     }
 
-    async acceptRide(msg:Messages.offer) {
+    async acceptRide(msg:offer) {
         if (this.messenger === undefined || this.id == null) {
             throw new Error("must have a messenger and an id")
         }
@@ -143,12 +147,12 @@ export class Rider extends EventEmitter {
             }
             return c.playTransactions(this.tree, [setDataTransaction("/_decentracar/accepted", msg.driverDid)])
         })
-        this.messenger.publish(msg.driverDid, Messages.serialize({
+        this.messenger.publish(msg.driverDid, serialize({
             type: messageType.offerAccept,
             riderDid: this.id,
             location: [this.location.x, this.location.y],
             destination: [this.destination.x, this.destination.y]
-        } as Messages.offerAccept))
+        } as offerAccept))
     }
 
     async askForRide() {
@@ -157,10 +161,10 @@ export class Rider extends EventEmitter {
         }
         log(this.name, " asking for ride")
 
-        this.messenger.publish(ridersTopic, Messages.serialize({
+        this.messenger.publish(ridersTopic, serialize({
             type: messageType.rideRequest,
             riderDID: this.id,
             location: [this.location.x, this.location.y]
-        } as Messages.rideRequest))
+        } as rideRequest))
     }
 }

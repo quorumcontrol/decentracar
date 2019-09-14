@@ -6,12 +6,12 @@ import debug from 'debug';
 import { minLong, maxLong, minLat, maxLat } from '../util/locations';
 import { Rider } from '../rider';
 import { Envelope } from 'tupelo-wasm-sdk/node_modules/tupelo-messages';
-import Messages, { certificationTopic, ridersTopic, messageType } from '../messages';
+import { certificationTopic, ridersTopic, messageType, serialize, dropoff, riding, rideRequest, deserialize, offer, dcMessage, offerAccept, didRegistration } from '../messages';
 import { SimpleSyncher } from '../util/actor';
 
 const log = debug('decentracar:driver')
 
-const MAX_SPEED = .000533,
+const MAX_SPEED = .001,
     MIN_SPEED = .000016,
     MAX_FORCE = .0001,
     ARRIVAL_DIST = .001
@@ -88,10 +88,10 @@ export class Driver extends EventEmitter {
         const c = await this.community
         await c.playTransactions(this.tree, [setDataTransaction("_decentracar/type", "driver")])
         await c.nextUpdate()
-        this.messenger.publish(certificationTopic, Messages.serialize({
+        this.messenger.publish(certificationTopic, serialize({
             type: messageType.didRegistration,
             did: this.id,
-        } as Messages.didRegistration))
+        } as didRegistration))
     }
 
     async handleRidersMessage(env: Envelope) {
@@ -107,20 +107,20 @@ export class Driver extends EventEmitter {
         await c.playTransactions(this.tree, [setDataTransaction("_decentracar/offering", Buffer.from(env.getFrom_asU8()).toString())])
         log(this.name, " offering a ride")
 
-        const msg: Messages.rideRequest = Messages.deserialize(env.getPayload_asU8())
+        const msg: rideRequest = deserialize(env.getPayload_asU8())
 
-        this.messenger.publish(Buffer.from(env.getFrom_asU8()).toString(), Messages.serialize({
+        this.messenger.publish(Buffer.from(env.getFrom_asU8()).toString(), serialize({
             type: messageType.offer,
             driverDid: this.id,
             driverLocation: [this.location.x, this.location.y],
-        } as Messages.offer))
+        } as offer))
     }
 
     async handleSelfMessages(env: Envelope) {
         if (this.messenger === undefined || this.tree === undefined || this.id === undefined) {
             throw new Error("need an id, tree and messenger to handleSelfMessages")
         }
-        const msg: Messages.dcMessage = Messages.deserialize(env.getPayload_asU8())
+        const msg: dcMessage = deserialize(env.getPayload_asU8())
         switch (msg.type) {
             case messageType.didRegistration:
                 this.registered = true // for now, for real we'd have to check this
@@ -134,7 +134,7 @@ export class Driver extends EventEmitter {
                 this.offering = false
                 break;
             case messageType.offerAccept:
-                const typedMsg = <Messages.offerAccept>msg
+                const typedMsg = <offerAccept>msg
                 log(this.name, " offer accepted by rider")
                 //TODO: check if this is a valid accept
                 this.acceptedRider = typedMsg.riderDid
@@ -182,21 +182,21 @@ export class Driver extends EventEmitter {
                         setDataTransaction("/_decentracar/accepted", null),
                     ])
                 })
-                this.messenger.publish(this.acceptedRider, Messages.serialize({
+                this.messenger.publish(this.acceptedRider, serialize({
                     type: messageType.dropoff,
                     driverDid: this.id,
-                } as Messages.dropoff))
-                
+                } as dropoff))
+
                 this.acceptedRider = undefined
                 this.offering = false
 
                 this.wander()
             } else {
-                this.messenger.publish(this.acceptedRider, Messages.serialize({
+                this.messenger.publish(this.acceptedRider, serialize({
                     type: messageType.riding,
                     driverDid: this.id,
                     location: [this.location.x, this.location.y],
-                } as Messages.riding))
+                } as riding))
                 this.follow(this.destination, ARRIVAL_DIST) //TODO: not sure what the arrival number should be
             }
            
