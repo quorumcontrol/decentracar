@@ -7,6 +7,7 @@ import debug from 'debug';
 import Messages, { ridersTopic, certificationTopic, messageType } from "../messages";
 import { Envelope } from "tupelo-wasm-sdk/node_modules/tupelo-messages";
 import { SimpleSyncher } from "../util/actor";
+import { randomGeo } from "../util/locations";
 
 const log = debug('decentracar:rider')
 
@@ -23,6 +24,7 @@ export class Rider extends EventEmitter {
     id?: string
     name: string
     location: Vector
+    destination: Vector
     registered: boolean
 
     acceptedDriver?: string // a DID
@@ -35,6 +37,7 @@ export class Rider extends EventEmitter {
         super();
         this.community = opts.community;
         this.location = opts.location;
+        this.destination = randomGeo(this.location, 10000) // anywhere within a 10km radius
         this.name = faker.name.findName();
         this.registered = false;
         this.syncher = new SimpleSyncher();
@@ -60,6 +63,10 @@ export class Rider extends EventEmitter {
             resolve(this)
         })
         return this.startPromise
+    }
+
+    stop() {
+        log(this.name, " dropped off")
     }
 
     async registerAsRider() {
@@ -94,6 +101,13 @@ export class Rider extends EventEmitter {
                 break;
             case messageType.offer:
                 this.possiblyAcceptRide(msg as Messages.offer)
+                break;
+            case messageType.riding:
+                const typedMsg = msg as Messages.riding
+                this.location = new Vector(typedMsg.location[0], typedMsg.location[1])
+                break;
+            case messageType.dropoff:
+                this.stop()
                 break;
         }
     }
@@ -132,7 +146,8 @@ export class Rider extends EventEmitter {
         this.messenger.publish(msg.driverDid, Messages.serialize({
             type: messageType.offerAccept,
             riderDid: this.id,
-            location: [this.location.x, this.location.y]
+            location: [this.location.x, this.location.y],
+            destination: [this.destination.x, this.destination.y]
         } as Messages.offerAccept))
     }
 

@@ -16,7 +16,9 @@ export enum messageType {
     offerAccept,
     didRegistration,
     rideRequest,
-    rideRequestResponse
+    rideRequestResponse,
+    riding,
+    dropoff,
 }
 
 export namespace Messages {
@@ -65,6 +67,18 @@ export namespace Messages {
         type: messageType.offerAccept
         riderDid: string
         location:[number,number]
+        destination:[number,number]
+    }
+
+    export interface riding extends dcMessage {
+        type: messageType.riding
+        driverDid: string
+        location: [number,number]
+    }
+
+    export interface dropoff extends dcMessage {
+        type: messageType.dropoff,
+        driverDid: string
     }
 }
 

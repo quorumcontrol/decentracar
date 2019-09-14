@@ -13,7 +13,8 @@ const log = debug('decentracar:driver')
 
 const MAX_SPEED = .000533,
     MIN_SPEED = .000016,
-    MAX_FORCE = .0001
+    MAX_FORCE = .0001,
+    ARRIVAL_DIST = .001
 
 interface IDriverOpts {
     community: Promise<Community>
@@ -35,6 +36,7 @@ export class Driver extends EventEmitter {
     acceptedRider?: string
     destination?: Vector
     offering: boolean
+    hasRider:boolean
     registered: boolean
 
     private messenger?: CommunityMessenger
@@ -51,6 +53,7 @@ export class Driver extends EventEmitter {
         this.name = faker.name.findName();
         this.registered = false;
         this.offering = false;
+        this.hasRider = false;
         this.syncher = new SimpleSyncher();
     }
 
@@ -136,6 +139,7 @@ export class Driver extends EventEmitter {
                 //TODO: check if this is a valid accept
                 this.acceptedRider = typedMsg.riderDid
                 this.riderLocation = new Vector(typedMsg.location[0], typedMsg.location[1])
+                this.destination = new Vector(typedMsg.destination[0], typedMsg.destination[1])
                 const c = await this.community
                 this.syncher.send(()=> {
                     if (this.tree === undefined) {
@@ -150,10 +154,53 @@ export class Driver extends EventEmitter {
     async tick() {
         await this.start()
         // do all the calculations
-        if (this.riderLocation !== undefined) {
+        if (this.riderLocation !== undefined && !this.hasRider) {
             var d = this.riderLocation.dist(this.location);
-            log(this.name, " @ ", this.location, " moving to rider @ ", this.riderLocation, " (distance: ", d, ", accepted: ", !!this.acceptedRider, ")")
-            this.follow(this.riderLocation, .001) //TODO: not sure what the arrival number should be
+            if (d < ARRIVAL_DIST) {
+                log(this.name, " arrived at passenger")
+                this.hasRider = true
+            }
+            log(this.name, " moving to rider @ ", this.riderLocation, " (distance: ", d, ")")
+            this.follow(this.riderLocation, ARRIVAL_DIST) //TODO: not sure what the arrival number should be
+        } else if (this.hasRider && this.destination) {
+            if (!this.acceptedRider || !this.messenger) {
+                throw new Error("error must have accepted rider if dropping someone off")
+            }
+            var d = this.destination.dist(this.location);
+            log(this.name, " driving rider to ", this.destination, " (distance: ", d, ")")
+            if (d < ARRIVAL_DIST) {
+                log(this.name, " arrived at destination")
+                this.hasRider = false
+                this.riderLocation = undefined
+                const c = await this.community
+                await this.syncher.send(()=> {
+                    if (this.tree === undefined) {
+                        throw new Error("undefined tree")
+                    }
+                    return c.playTransactions(this.tree, [
+                        setDataTransaction("/_decentracar/offering", null),
+                        setDataTransaction("/_decentracar/accepted", null),
+                    ])
+                })
+                this.messenger.publish(this.acceptedRider, Messages.serialize({
+                    type: messageType.dropoff,
+                    driverDid: this.id,
+                } as Messages.dropoff))
+                
+                this.acceptedRider = undefined
+                this.offering = false
+
+                this.wander()
+            } else {
+                this.messenger.publish(this.acceptedRider, Messages.serialize({
+                    type: messageType.riding,
+                    driverDid: this.id,
+                    location: [this.location.x, this.location.y],
+                } as Messages.riding))
+                this.follow(this.destination, ARRIVAL_DIST) //TODO: not sure what the arrival number should be
+            }
+           
+
         } else {
             this.emit('wandering')
             this.wander() // for now just wander
@@ -175,7 +222,6 @@ export class Driver extends EventEmitter {
         var d = target.dist(this.location);
 
         if (d < arrive) {
-            log(this.name, " arrived at passenger")
             dest.setMag(d / arrive * MAX_SPEED);
         } else {
             dest.setMag(MAX_SPEED);
