@@ -1,9 +1,7 @@
-import {EcdsaKey, ChainTree, IPubSubMessage, Community, CommunityMessenger, CID} from 'tupelo-wasm-sdk';
-import {Envelope} from 'tupelo-messages/community/community_pb'
+import {EcdsaKey, ChainTree} from 'tupelo-wasm-sdk';
 import { DecentraCarService } from './service';
 import debug from 'debug'
 import { getAppCommunity } from '../util/appcommunity';
-
 var log = debug("decentracar:index")
 
 const doRun = async () => {

@@ -2,12 +2,12 @@ import { EcdsaKey, ChainTree, Community, CommunityMessenger, setDataTransaction 
 import faker from 'faker';
 import Vector from '../util/vector'
 import { EventEmitter } from 'events';
-import debug from 'debug';
 import { Envelope } from 'tupelo-wasm-sdk/node_modules/tupelo-messages';
 import { certificationTopic, ridersTopic, messageType, serialize, dropoff, riding, deserialize, offer, dcMessage, offerAccept, didRegistration } from '../messages';
 import { SimpleSyncher } from '../util/actor';
+import {emittingLogger} from "../util/emittinglogger";
 
-const log = debug('decentracar:driver')
+const log = emittingLogger('decentracar:driver')
 
 const MAX_SPEED = .001,
     MIN_SPEED = .000016,
@@ -73,13 +73,14 @@ export class Driver extends EventEmitter {
             this.messenger.subscribe(this.id, this.handleSelfMessages.bind(this))
             this.messenger.subscribe(ridersTopic, this.handleRidersMessage.bind(this))
             await this.registerAsDriver()
-            log(this.name, " starting at ", this.location)
+            // log(this.name, " starting at ", this.location)
             resolve(this)
         })
         return this.startPromise
     }
 
     async registerAsDriver() {
+        log(this.name, " registering as driver")
         if (this.messenger === undefined || this.tree === undefined) {
             throw new Error("need a tree and messenger to registerAsDriver")
         }

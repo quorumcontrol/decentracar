@@ -2,13 +2,13 @@ import { Community, ChainTree, EcdsaKey, CommunityMessenger, setDataTransaction 
 import Vector from "../util/vector";
 import { EventEmitter } from "events";
 import faker from 'faker';
-import debug from 'debug';
 import { ridersTopic, certificationTopic, messageType, offer, riding, deserialize, serialize, didRegistration, offerReject, offerAccept, rideRequest, dcMessage } from "../messages";
 import { Envelope } from "tupelo-wasm-sdk/node_modules/tupelo-messages";
 import { SimpleSyncher } from "../util/actor";
 import { randomGeo } from "../util/locations";
+import {emittingLogger} from "../util/emittinglogger";
 
-const log = debug('decentracar:rider')
+const log = emittingLogger('decentracar:rider')
 
 
 interface IRiderOpts {

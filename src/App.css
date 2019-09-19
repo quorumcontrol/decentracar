@@ -1,4 +1,9 @@
 .leaflet-container {
-    height: 800px;
+    height: 700px;
     width: 100%;
-  }
+}
+
+.app-logs {
+  height: 700px;
+  overflow-y:scroll;
+}

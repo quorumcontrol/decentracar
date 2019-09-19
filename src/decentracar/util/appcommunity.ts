@@ -12,7 +12,8 @@ export function getAppCommunity(): Promise<Community> {
        return _appPromise
    }
     _appPromise = new Promise(async (resolve,reject)=> {
-        const c = await Community.freshLocalTestCommunity()
+        // const c = await Community.freshLocalTestCommunity()
+        const c = await Community.getDefault()
         resolve(c)
     })
     return _appPromise

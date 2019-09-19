@@ -1,12 +1,12 @@
 import { Community, EcdsaKey, ChainTree, CID, CommunityMessenger, setDataTransaction } from "tupelo-wasm-sdk";
 import { Envelope } from "tupelo-wasm-sdk/node_modules/tupelo-messages";
-import debug from 'debug';
 import { messageType, didRegistration, deserialize, serialize } from "../messages";
 import { EventEmitter } from "events";
 import { certificationTopic } from '../messages'
 import { SimpleSyncher } from "../util/actor";
+import {emittingLogger} from '../util/emittinglogger';
 
-const log = debug("decentracar:company")
+const log = emittingLogger("decentracar:company")
 
 interface IDecentraCarServiceOptions {
     community: Community
@@ -47,13 +47,34 @@ export class DecentraCarService extends EventEmitter {
         }
         const msg: didRegistration = deserialize(env.getPayload_asU8())
         const did = msg.did
-        let tip
-        try {
-            tip = await this.community.getTip(did)
-        } catch (err) {
-            log(err, "/ no tip found for ", did)
-            return
+
+        let tryCount = 0
+
+        const getTip = async ()=> {
+            let tip
+
+            try {
+                tip = await this.community.getTip(did)
+            } catch (err) {
+                if (tryCount < 10 && err === 'not found') {
+                    tryCount++
+                    setTimeout(getTip, 1000)
+                    return
+                }
+                log(err, "/ no tip found for ", did)
+                return
+            }
+            this.handleNew(tip, msg)
         }
+        getTip()
+    }
+
+    private async handleNew(tip:any, msg:didRegistration) {
+        if (this.tree === undefined || this.messenger === undefined) {
+            throw new Error("handling a message on a service without a tree or messenger")
+        }
+        
+        const did = msg.did
         let tree = new ChainTree({
             tip: new CID(tip),
             store: this.community.blockservice,

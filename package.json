@@ -17,6 +17,7 @@
     "ipld-dag-cbor": "^0.15.0",
     "leaflet": "^1.5.1",
     "react": "^16.9.0",
+    "react-bulma-components": "^3.0.1-7",
     "react-dom": "^16.9.0",
     "react-leaflet": "^2.4.0",
     "react-scripts": "3.1.1",
