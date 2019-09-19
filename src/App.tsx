@@ -4,6 +4,8 @@ import { Map, Marker, Popup, TileLayer, Tooltip} from 'react-leaflet';
 import { getAppCommunity } from './decentracar/util/appcommunity';
 import { Simulation} from './decentracar/simulation'
 import {Icon, Point} from 'leaflet'
+import { Driver } from './decentracar/driver';
+import { Rider } from './decentracar/rider';
 
 const position: [number, number] = [52.491362, 13.362029];
 
@@ -21,20 +23,23 @@ const riderIcon = new Icon({
   className: 'leaflet-div-icon'
 })
 
-const DriverMarker = ({name,lat,long}:{name:string, lat:number, long:number})=> {
+const DriverMarker = ({driver}:{driver:Driver})=> {
   return (
-      <Marker key={name} position={[lat, long]} icon={driverIcon}>
-          <Popup>A Driver: {name}</Popup>
-          <Tooltip>Driver</Tooltip>
+      <Marker position={[driver.location.y, driver.location.x]} icon={driverIcon}>
+          <Popup>
+            A Driver: {driver.name}
+            Accepted Rider: {driver.acceptedRider}
+          </Popup>
+          <Tooltip>{driver.name}</Tooltip>
       </Marker>
   )
 }
 
-const RiderMarker = ({name,lat,long}:{name:string, lat:number, long:number})=> {
+const RiderMarker = ({rider}:{rider:Rider})=> {
   return (
-      <Marker key={name} position={[lat, long]} icon={riderIcon}>
-          <Popup>A Rider: {name}</Popup>
-          <Tooltip>Rider</Tooltip>
+      <Marker position={[rider.location.y, rider.location.x]} icon={riderIcon}>
+          <Popup>A Rider: {rider.name}</Popup>
+          <Tooltip>{rider.name}</Tooltip>
       </Marker>
   )
 }
@@ -48,7 +53,7 @@ const App: React.FC = () => {
     const simulation = new Simulation({
       community: getAppCommunity(),
       driverCount: 10,
-      riderProbability: 10,
+      riderProbability: 5,
     })
     setSimulation(simulation)
     simulation.on('tick', (num) =>{
@@ -61,11 +66,11 @@ const App: React.FC = () => {
   let markers:JSX.Element[] = []
   if (simulation) {
     for (let d of simulation.drivers) {
-      markers.push(<DriverMarker name={d.name} lat={d.location.y} long={d.location.x}/>)
+      markers.push(<DriverMarker key={d.name} driver={d}/>)
     }
 
     for (let r of simulation.riders) {
-      markers.push(<RiderMarker name={r.name} lat={r.location.y} long={r.location.x}/>)
+      markers.push(<RiderMarker key={r.name} rider={r}/>)
     }
 
   }
@@ -82,7 +87,6 @@ const App: React.FC = () => {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution="&copy; <a href=&quot;http://osm.org/copyright&quot;>OpenStreetMap</a> contributors"
         />
-        {console.log(markers)}
         {markers}
       </Map>
           }

@@ -1,12 +1,10 @@
-import { EcdsaKey, ChainTree, Community, CommunityMessenger, Tupelo, setDataTransaction } from 'tupelo-wasm-sdk';
+import { EcdsaKey, ChainTree, Community, CommunityMessenger, setDataTransaction } from 'tupelo-wasm-sdk';
 import faker from 'faker';
 import Vector from '../util/vector'
 import { EventEmitter } from 'events';
 import debug from 'debug';
-import { minLong, maxLong, minLat, maxLat } from '../util/locations';
-import { Rider } from '../rider';
 import { Envelope } from 'tupelo-wasm-sdk/node_modules/tupelo-messages';
-import { certificationTopic, ridersTopic, messageType, serialize, dropoff, riding, rideRequest, deserialize, offer, dcMessage, offerAccept, didRegistration } from '../messages';
+import { certificationTopic, ridersTopic, messageType, serialize, dropoff, riding, deserialize, offer, dcMessage, offerAccept, didRegistration } from '../messages';
 import { SimpleSyncher } from '../util/actor';
 
 const log = debug('decentracar:driver')
@@ -14,7 +12,7 @@ const log = debug('decentracar:driver')
 const MAX_SPEED = .001,
     MIN_SPEED = .000016,
     MAX_FORCE = .0001,
-    ARRIVAL_DIST = .001
+    ARRIVAL_DIST = .002
 
 interface IDriverOpts {
     community: Promise<Community>
@@ -49,7 +47,7 @@ export class Driver extends EventEmitter {
         this.location = opts.location;
         this.velocity = new Vector(0, 0);
         this.acceleration = new Vector(0, 0);
-        this.wandering = new Vector(.0001, .0001);
+        this.wandering = new Vector(Math.random() / 1000, Math.random() / 1000);
         this.name = faker.name.findName();
         this.registered = false;
         this.offering = false;
@@ -107,8 +105,6 @@ export class Driver extends EventEmitter {
         await c.playTransactions(this.tree, [setDataTransaction("_decentracar/offering", Buffer.from(env.getFrom_asU8()).toString())])
         log(this.name, " offering a ride")
 
-        const msg: rideRequest = deserialize(env.getPayload_asU8())
-
         this.messenger.publish(Buffer.from(env.getFrom_asU8()).toString(), serialize({
             type: messageType.offer,
             driverDid: this.id,
@@ -127,14 +123,14 @@ export class Driver extends EventEmitter {
                 log(this.name, " registered")
                 break;
             case messageType.offerReject:
-                log(this.name, " offer rejected by rider")
+                // log(this.name, " offer rejected by rider")
                 // TODO: check if this is a valid offer, and was sent by us and we still care about it
                 this.riderLocation = undefined
                 this.acceptedRider = undefined
                 this.offering = false
                 break;
             case messageType.offerAccept:
-                const typedMsg = <offerAccept>msg
+                const typedMsg = msg as offerAccept
                 log(this.name, " offer accepted by rider")
                 //TODO: check if this is a valid accept
                 this.acceptedRider = typedMsg.riderDid
@@ -155,19 +151,19 @@ export class Driver extends EventEmitter {
         await this.start()
         // do all the calculations
         if (this.riderLocation !== undefined && !this.hasRider) {
-            var d = this.riderLocation.dist(this.location);
+            let d = this.riderLocation.dist(this.location);
             if (d < ARRIVAL_DIST) {
                 log(this.name, " arrived at passenger")
                 this.hasRider = true
             }
-            log(this.name, " moving to rider @ ", this.riderLocation, " (distance: ", d, ")")
+            // log(this.name, " moving to rider @ ", this.riderLocation, " (distance: ", d, ")")
             this.follow(this.riderLocation, ARRIVAL_DIST) //TODO: not sure what the arrival number should be
         } else if (this.hasRider && this.destination) {
             if (!this.acceptedRider || !this.messenger) {
                 throw new Error("error must have accepted rider if dropping someone off")
             }
-            var d = this.destination.dist(this.location);
-            log(this.name, " driving rider to ", this.destination, " (distance: ", d, ")")
+            let d = this.destination.dist(this.location);
+            // log(this.name, " driving rider to ", this.destination, " (distance: ", d, ")")
             if (d < ARRIVAL_DIST) {
                 log(this.name, " arrived at destination")
                 this.hasRider = false

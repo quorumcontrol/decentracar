@@ -4,6 +4,9 @@ import { randomGeo, mapCenter } from './util/locations'
 import { EventEmitter } from 'events'
 import { DecentraCarService } from './company/service'
 import { Rider } from './rider'
+import debug from 'debug'
+
+const log = debug("decentracar:simulation")
 
 interface ISimulationOpts {
     driverCount: number
@@ -36,6 +39,7 @@ export class Simulation extends EventEmitter {
     }
 
     stop() {
+        log('simulation stopped')
         if (this.interval === undefined) {
             return
         }
@@ -43,6 +47,7 @@ export class Simulation extends EventEmitter {
     }
 
     async start() {
+        log('starting simulation')
         const community = await this.community
         let key = await EcdsaKey.generate()
         let tree = await ChainTree.newEmptyTree(community.blockservice, key)
@@ -68,17 +73,27 @@ export class Simulation extends EventEmitter {
             d.tick()
         }
         this.possiblyCreateRider()
+        for (let r of this.riders) {
+            r.tick()
+        }
         this.tickCount++
         this.emit('tick', this.tickCount);
     }
 
     async possiblyCreateRider() {
+        if (this.tickCount < 5) {
+            return // don't do anything until 5 ticks have passed
+        }
         if (Math.random() * 100 < this.riderProbability) {
             const r = new Rider({
                 community: this.community,
                 location: randomGeo(mapCenter, 5000)
             })
             r.start()
+            r.once('stopped', ()=> {
+                let index = this.riders.indexOf(r)
+                this.riders.splice(index, 1)
+            })
             this.riders.push(r)
         }
     }

@@ -2,7 +2,6 @@ import { Community, ChainTree, EcdsaKey, CommunityMessenger, setDataTransaction 
 import Vector from "../util/vector";
 import { EventEmitter } from "events";
 import faker from 'faker';
-import { Driver } from "../driver";
 import debug from 'debug';
 import { ridersTopic, certificationTopic, messageType, offer, riding, deserialize, serialize, didRegistration, offerReject, offerAccept, rideRequest, dcMessage } from "../messages";
 import { Envelope } from "tupelo-wasm-sdk/node_modules/tupelo-messages";
@@ -26,6 +25,8 @@ export class Rider extends EventEmitter {
     location: Vector
     destination: Vector
     registered: boolean
+    tickCount: number
+    stopped:boolean
 
     acceptedDriver?: string // a DID
 
@@ -33,6 +34,8 @@ export class Rider extends EventEmitter {
     private messenger?: CommunityMessenger
     private syncher:SimpleSyncher
     private offers:offer[]
+    private subFn:Function
+    private firstOfferTick:number
 
     constructor(opts: IRiderOpts) {
         super();
@@ -43,6 +46,11 @@ export class Rider extends EventEmitter {
         this.registered = false;
         this.syncher = new SimpleSyncher();
         this.offers = []
+        this.handleSelfMessages = this.handleSelfMessages.bind(this)
+        this.subFn = ()=>{}
+        this.tickCount = 0
+        this.firstOfferTick = 0
+        this.stopped = false
     }
 
     start() {
@@ -60,7 +68,7 @@ export class Rider extends EventEmitter {
             }
             this.id = id
             this.messenger = new CommunityMessenger("integrationtest", 32, this.key, Buffer.from(this.id, 'utf8'), community.node.pubsub)
-            this.messenger.subscribe(this.id, this.handleSelfMessages.bind(this))
+            this.messenger.subscribe(this.id, this.handleSelfMessages)
             await this.registerAsRider()
             resolve(this)
         })
@@ -69,6 +77,11 @@ export class Rider extends EventEmitter {
 
     stop() {
         log(this.name, " dropped off")
+        if (this.messenger !== undefined && this.id !== undefined) {
+            this.messenger.unsubscribe(this.id, this.handleSelfMessages)
+        }
+        this.emit('stopped')
+        this.stopped = true
     }
 
     async registerAsRider() {
@@ -115,22 +128,45 @@ export class Rider extends EventEmitter {
     }
 
     possiblyAcceptRide(msg: offer) {
-        if (this.messenger === undefined) {
-            throw new Error("must have a messenger and an id")
-        }
         if (this.acceptedDriver !== undefined) {
-            log(this.name, " rejecting rider ", msg.driverDid)
-            this.messenger.publish(msg.driverDid, serialize({
-                type: messageType.offerReject,
-                offer: msg,
-            } as offerReject))
+            this.rejectRide(msg)
             return
         }
 
-        //TODO: accept a few offers and take the closest one        
+        this.offers.push(msg)
 
-         // otherwise accept this driver
-        this.acceptRide(msg)
+        if (this.offers.length === 1) {
+            // after the first offer, we'll wait a tick and then calculate which rider to accept
+            this.once('tick', ()=> {
+                let closest:offer|undefined = undefined
+                let closestDist:number = -1
+                for (let offer of this.offers) {
+                    let d = this.location.dist(new Vector(offer.driverLocation[0], offer.driverLocation[1]))
+                    if (closestDist === -1 || d < closestDist) {
+                        closest = offer
+                        closestDist = d
+                    }
+                }
+
+                if (closest === undefined) {
+                    throw new Error("no closest offer, this state should never happen, but in the loop")
+                }
+
+                // otherwise accept this driver
+                this.acceptRide(closest)
+            })
+        }
+    }
+
+    async rejectRide(rideOffer:offer) {
+        if (this.messenger === undefined) {
+            throw new Error("must have a messenger and an id")
+        }
+        // log(this.name, " rejecting rider ", rideOffer.driverDid)
+        this.messenger.publish(rideOffer.driverDid, serialize({
+            type: messageType.offerReject,
+            offer: rideOffer,
+        } as offerReject))
     }
 
     async acceptRide(msg:offer) {
@@ -153,6 +189,18 @@ export class Rider extends EventEmitter {
             location: [this.location.x, this.location.y],
             destination: [this.destination.x, this.destination.y]
         } as offerAccept))
+        
+        for (let offer of this.offers) {
+            if (offer !== msg) {
+                this.rejectRide(offer)
+            }
+        }
+        this.offers = []
+    }
+
+    tick() {
+        this.tickCount++
+        this.emit('tick', this.tickCount)
     }
 
     async askForRide() {

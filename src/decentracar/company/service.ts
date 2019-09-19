@@ -42,7 +42,7 @@ export class DecentraCarService extends EventEmitter {
     }
 
     private async handleRegistration(env: Envelope) {
-        if (this.tree === undefined || this.messenger == undefined) {
+        if (this.tree === undefined || this.messenger === undefined) {
             throw new Error("handling a message on a service without a tree or messenger")
         }
         const msg: didRegistration = deserialize(env.getPayload_asU8())
@@ -59,15 +59,12 @@ export class DecentraCarService extends EventEmitter {
             store: this.community.blockservice,
         })
         let type = await tree.resolve("/tree/data/_decentracar/type".split("/"))
-        switch (<string>type.value) {
+        switch (type.value as string) {
             case "rider":
-                log("new rider registration request")
                 await this.syncher.send(() => {
-                    log("syncher executing from rider")
                     if (this.tree === undefined) {
                         throw new Error("tree must be defined")
                     }
-                    log("playing transactions from rider")
                     return this.community.playTransactions(this.tree, [setDataTransaction("/_decentracar/validatedriders/" + did, true)])
                 })
                 log("registered new rider: ", did)

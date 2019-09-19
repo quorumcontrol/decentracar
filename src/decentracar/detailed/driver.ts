@@ -18,8 +18,10 @@ fsm.from(Driver.Riding).to(Driver.AcceptingPayment)
 fsm.from(Driver.AcceptingPayment).to(Driver.Wandering)
 
 fsm.onEnter(Driver.Offering, (from?: Driver, evt?:any):boolean=>{
-    // check to make sure the event doing this is a valid rider
-    console.log('evt: ', evt, ' from: ', from)
+    // Validity checks:
+    // * rider doing the offering is registered with Decentracar
+    // * rider has modified their ChainTree to ask for a ride
+    // * rider does not have an accepted driver in their chaintree
     return true
  });
 
