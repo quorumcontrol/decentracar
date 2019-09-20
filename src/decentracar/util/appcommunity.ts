@@ -1,7 +1,6 @@
 
 import { Community } from 'tupelo-wasm-sdk';
 import debug from 'debug';
-import process from 'process'
 
 const log = debug("appcommunity")
 
@@ -16,9 +15,11 @@ export function getAppCommunity(): Promise<Community> {
         let c: Community
         switch (process.env.NODE_ENV) {
             case 'production':
+                log('using production community')
                 c = await Community.getDefault()
                 break;
             default:
+                log('using development community')
                 c = await Community.freshLocalTestCommunity()
         }
         resolve(c)

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import 'react-bulma-components/dist/react-bulma-components.min.css';
 import './App.css';
-import { Map, Marker, Popup, TileLayer, Tooltip } from 'react-leaflet';
+import { Map, Marker, Popup, TileLayer, Tooltip, LayerGroup } from 'react-leaflet';
 import { getAppCommunity } from './decentracar/util/appcommunity';
 import { Simulation } from './decentracar/simulation'
 import { Icon, Point } from 'leaflet'
@@ -9,6 +9,18 @@ import { Driver } from './decentracar/driver';
 import { Rider } from './decentracar/rider';
 import { Container, Button, Columns, Navbar, Content, Box, Media, Image } from 'react-bulma-components';
 import {logs} from './decentracar/util/emittinglogger';
+
+import 'tupelo-wasm-sdk' // in order to get the Go global
+
+declare const Go: any;
+
+const subDirectory = window.location.pathname
+console.log("subDirectory ", subDirectory)
+
+if (subDirectory !== '/') {
+    console.log("setting wasmpath to: ",  subDirectory + "tupelo.wasm")
+    Go.setWasmPath(subDirectory + "tupelo.wasm");
+}
 
 const position: [number, number] = [52.491362, 13.362029];
 
@@ -69,7 +81,9 @@ const SimulationDisplay = ({ simulation, logs }: { simulation: Simulation, logs:
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution="&copy; <a href=&quot;http://osm.org/copyright&quot;>OpenStreetMap</a> contributors"
           />
-          {markers}
+          <LayerGroup>
+            {markers}
+          </LayerGroup>
         </Map>
       </Columns.Column>
       <Columns.Column>

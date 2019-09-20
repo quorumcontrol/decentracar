@@ -22,14 +22,15 @@
     "react-leaflet": "^2.4.0",
     "react-scripts": "3.1.1",
     "tupelo-messages": "^0.5.0-rc6",
-    "tupelo-wasm-sdk": "file://../tupelo-wasm-sdk",
+    "tupelo-wasm-sdk": "0.0.12",
     "typestate": "^1.0.6"
   },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "cp:wasm": "cp ./node_modules/tupelo-wasm-sdk/lib/js/go/tupelo.wasm ./public/"
   },
   "eslintConfig": {
     "extends": "react-app",
