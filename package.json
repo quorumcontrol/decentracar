@@ -2,6 +2,7 @@
   "name": "decentracar",
   "version": "0.1.0",
   "private": true,
+  "homepage": ".",
   "dependencies": {
     "@types/debug": "^4.1.5",
     "@types/faker": "^4.1.5",
