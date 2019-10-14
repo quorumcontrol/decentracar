@@ -23,7 +23,7 @@
     "react-leaflet": "^2.4.0",
     "react-scripts": "3.1.1",
     "tupelo-messages": "^0.5.0-rc6",
-    "tupelo-wasm-sdk": "0.0.12",
+    "tupelo-wasm-sdk": "0.0.14-rc2",
     "typestate": "^1.0.6"
   },
   "scripts": {

@@ -1,5 +1,5 @@
 import { Community, EcdsaKey, ChainTree, CID, CommunityMessenger, setDataTransaction } from "tupelo-wasm-sdk";
-import { Envelope } from "tupelo-wasm-sdk/node_modules/tupelo-messages";
+import { Envelope } from "tupelo-messages";
 import { messageType, didRegistration, deserialize, serialize } from "../messages";
 import { EventEmitter } from "events";
 import { certificationTopic } from '../messages'

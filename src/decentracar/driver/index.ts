@@ -2,7 +2,7 @@ import { EcdsaKey, ChainTree, Community, CommunityMessenger, setDataTransaction 
 import faker from 'faker';
 import Vector from '../util/vector'
 import { EventEmitter } from 'events';
-import { Envelope } from 'tupelo-wasm-sdk/node_modules/tupelo-messages';
+import { Envelope } from 'tupelo-messages';
 import { certificationTopic, ridersTopic, messageType, serialize, dropoff, riding, deserialize, offer, dcMessage, offerAccept, didRegistration } from '../messages';
 import { SimpleSyncher } from '../util/actor';
 import {emittingLogger} from "../util/emittinglogger";
