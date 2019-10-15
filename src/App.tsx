@@ -157,8 +157,11 @@ const App: React.FC = () => {
         </Navbar>
         {simulation ? <SimulationDisplay simulation={simulation} logs={appLogs} /> :
           <Content>
-            <p>This is a simulation of a simplified decentralized car sharing app, a technical overview is available.</p>
+            <p>This is a simulation of a simplified decentralized car sharing app.</p>
+            <p>You can read more about it here: <a href="https://www.tupelo.org/posts/decentracar">https://www.tupelo.org/posts/decentracar</a>. 
+            Github repo is here: <a href="https://github.com/quorumcontrol/decentracar">https://github.com/quorumcontrol/decentracar</a></p>
             <p><Button onClick={handleStart}>Click here to start</Button></p>
+            <p>This simulation only works on desktop browsers (and not safari).</p>
           </Content>
         }
       </Container>
