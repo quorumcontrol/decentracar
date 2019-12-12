@@ -79,7 +79,7 @@ export class DecentraCarService extends EventEmitter {
             tip: new CID(tip),
             store: this.community.blockservice,
         })
-        let type = await tree.resolve("/tree/data/_decentracar/type".split("/"))
+        let type = await tree.resolveData("_decentracar/type")
         switch (type.value as string) {
             case "rider":
                 await this.syncher.send(() => {
