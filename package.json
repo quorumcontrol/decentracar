@@ -21,7 +21,7 @@
     "react-bulma-components": "^3.0.1-7",
     "react-dom": "^16.9.0",
     "react-leaflet": "^2.4.0",
-    "react-scripts": "3.1.1",
+    "react-scripts": "^3.4.0",
     "tupelo-messages": "latest",
     "tupelo-wasm-sdk": "next",
     "typestate": "^1.0.6"
