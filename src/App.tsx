@@ -8,7 +8,7 @@ import { Icon, Point } from 'leaflet'
 import { Driver } from './decentracar/driver';
 import { Rider } from './decentracar/rider';
 import { Container, Button, Columns, Navbar, Content, Box, Media, Image } from 'react-bulma-components';
-import {logs} from './decentracar/util/emittinglogger';
+import { logs } from './decentracar/util/emittinglogger';
 
 import 'tupelo-wasm-sdk' // in order to get the Go global
 
@@ -18,14 +18,14 @@ const subDirectory = window.location.pathname
 console.log("subDirectory ", subDirectory)
 
 if (subDirectory !== '/') {
-    console.log("setting wasmpath to: ",  subDirectory + "tupelo.wasm")
-    Go.setWasmPath(subDirectory + "tupelo.wasm");
+  console.log("setting wasmpath to: ", subDirectory + "tupelo.wasm")
+  Go.setWasmPath(subDirectory + "tupelo.wasm");
 }
 
 const position: [number, number] = [52.491362, 13.362029];
 
-const driverPng:any = require('./imgs/driver.png')
-const riderPng:any = require('./imgs/rider.png')
+const driverPng: any = require('./imgs/driver.png')
+const riderPng: any = require('./imgs/rider.png')
 
 const driverIcon = new Icon({
   iconUrl: driverPng,
@@ -62,13 +62,14 @@ const RiderMarker = ({ rider }: { rider: Rider }) => {
   )
 }
 
-const SimulationDisplay = ({ simulation, logs }: { simulation: Simulation, logs:JSX.Element[] }) => {
+const SimulationDisplay = ({ simulation, logs }: { simulation: Simulation, logs: JSX.Element[] }) => {
   let markers: JSX.Element[] = []
   for (let d of simulation.drivers) {
     markers.push(<DriverMarker key={d.name} driver={d} />)
   }
 
   for (let r of simulation.riders) {
+    console.log("pushing marker for rider:", r)
     markers.push(<RiderMarker key={r.name} rider={r} />)
   }
 
@@ -99,16 +100,16 @@ const SimulationDisplay = ({ simulation, logs }: { simulation: Simulation, logs:
 }
 
 
-const LogDisplay = ({txt,icon}:{txt:string,icon:any}) => {
+const LogDisplay = ({ txt, icon }: { txt: string, icon: any }) => {
   return (
     <Box key={txt}>
       <Media>
         <Media.Item>
-         <Image size={32} src={icon}></Image>
+          <Image size={32} src={icon}></Image>
         </Media.Item>
         <Media.Item>
           <Content>
-          <p>{txt}</p>
+            <p>{txt}</p>
           </Content>
         </Media.Item>
       </Media>
@@ -134,14 +135,14 @@ const App: React.FC = () => {
     })
     sim.start()
     sim.tickEvery(1000)
-    
-    logs.on('decentracar:driver', (...logStrings:any[]) => {
-      appLogs.unshift(<LogDisplay icon={driverPng} txt={logStrings.join(' ')}/>)
+
+    logs.on('decentracar:driver', (...logStrings: any[]) => {
+      appLogs.unshift(<LogDisplay icon={driverPng} txt={logStrings.join(' ')} />)
       setAppLogs(appLogs)
     })
 
-    logs.on('decentracar:rider', (...logStrings:any[]) => {
-      appLogs.unshift(<LogDisplay icon={riderPng} txt={logStrings.join(' ')}/>)
+    logs.on('decentracar:rider', (...logStrings: any[]) => {
+      appLogs.unshift(<LogDisplay icon={riderPng} txt={logStrings.join(' ')} />)
       setAppLogs(appLogs)
     })
 
@@ -158,7 +159,7 @@ const App: React.FC = () => {
         {simulation ? <SimulationDisplay simulation={simulation} logs={appLogs} /> :
           <Content>
             <p>This is a simulation of a simplified decentralized car sharing app.</p>
-            <p>You can read more about it here: <a href="https://www.tupelo.org/posts/decentracar">https://www.tupelo.org/posts/decentracar</a>. 
+            <p>You can read more about it here: <a href="https://www.tupelo.org/posts/decentracar">https://www.tupelo.org/posts/decentracar</a>.
             Github repo is here: <a href="https://github.com/quorumcontrol/decentracar">https://github.com/quorumcontrol/decentracar</a></p>
             <p><Button onClick={handleStart}>Click here to start</Button></p>
             <p>This simulation only works on desktop browsers (and not safari).</p>

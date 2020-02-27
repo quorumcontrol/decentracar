@@ -1,12 +1,12 @@
-import { Community, ChainTree, EcdsaKey, CommunityMessenger, setDataTransaction } from "tupelo-wasm-sdk";
+import { Community, ChainTree, EcdsaKey, setDataTransaction } from "tupelo-wasm-sdk";
 import Vector from "../util/vector";
 import { EventEmitter } from "events";
 import faker from 'faker';
 import { ridersTopic, certificationTopic, messageType, offer, riding, deserialize, serialize, didRegistration, offerReject, offerAccept, rideRequest, dcMessage } from "../messages";
-import { Envelope } from "tupelo-messages";
+import { Messenger } from "../messages";
 import { SimpleSyncher } from "../util/actor";
 import { randomGeo } from "../util/locations";
-import {emittingLogger} from "../util/emittinglogger";
+import { emittingLogger } from "../util/emittinglogger";
 
 const log = emittingLogger('decentracar:rider')
 
@@ -26,16 +26,16 @@ export class Rider extends EventEmitter {
     destination: Vector
     registered: boolean
     tickCount: number
-    stopped:boolean
+    stopped: boolean
 
     acceptedDriver?: string // a DID
 
     private startPromise?: Promise<Rider>
-    private messenger?: CommunityMessenger
-    private syncher:SimpleSyncher
-    private offers:offer[]
-    private subFn:Function
-    private firstOfferTick:number
+    private messenger?: Messenger
+    private syncher: SimpleSyncher
+    private offers: offer[]
+    private subFn: Function
+    private firstOfferTick: number
 
     constructor(opts: IRiderOpts) {
         super();
@@ -47,7 +47,7 @@ export class Rider extends EventEmitter {
         this.syncher = new SimpleSyncher();
         this.offers = []
         this.handleSelfMessages = this.handleSelfMessages.bind(this)
-        this.subFn = ()=>{}
+        this.subFn = () => { }
         this.tickCount = 0
         this.firstOfferTick = 0
         this.stopped = false
@@ -67,7 +67,7 @@ export class Rider extends EventEmitter {
                 return
             }
             this.id = id
-            this.messenger = new CommunityMessenger("integrationtest", 32, this.key, Buffer.from(this.id, 'utf8'), community.node.pubsub)
+            this.messenger = new Messenger(community.node.pubsub)
             this.messenger.subscribe(this.id, this.handleSelfMessages)
             await this.registerAsRider()
             resolve(this)
@@ -90,7 +90,7 @@ export class Rider extends EventEmitter {
             throw new Error("need a tree and messenger to registerAsDriver")
         }
         const c = await this.community
-        await this.syncher.send(()=> {
+        await this.syncher.send(() => {
             if (this.tree === undefined) {
                 throw new Error("undefined tree")
             }
@@ -106,8 +106,8 @@ export class Rider extends EventEmitter {
     }
 
     // the drivers should send messages directly here
-    async handleSelfMessages(env: Envelope) {
-        const msg: dcMessage = deserialize(env.getPayload_asU8())
+    async handleSelfMessages(payload: Uint8Array) {
+        const msg: dcMessage = deserialize(payload)
         switch (msg.type) {
             case messageType.didRegistration:
                 this.registered = true // for now, for real we'd have to check this
@@ -137,9 +137,9 @@ export class Rider extends EventEmitter {
 
         if (this.offers.length === 1) {
             // after the first offer, we'll wait a tick and then calculate which rider to accept
-            this.once('tick', ()=> {
-                let closest:offer|undefined = undefined
-                let closestDist:number = -1
+            this.once('tick', () => {
+                let closest: offer | undefined = undefined
+                let closestDist: number = -1
                 for (let offer of this.offers) {
                     let d = this.location.dist(new Vector(offer.driverLocation[0], offer.driverLocation[1]))
                     if (closestDist === -1 || d < closestDist) {
@@ -158,7 +158,7 @@ export class Rider extends EventEmitter {
         }
     }
 
-    async rejectRide(rideOffer:offer) {
+    async rejectRide(rideOffer: offer) {
         if (this.messenger === undefined) {
             throw new Error("must have a messenger and an id")
         }
@@ -169,7 +169,7 @@ export class Rider extends EventEmitter {
         } as offerReject))
     }
 
-    async acceptRide(msg:offer) {
+    async acceptRide(msg: offer) {
         if (this.messenger === undefined || this.id == null) {
             throw new Error("must have a messenger and an id")
         }
@@ -189,7 +189,7 @@ export class Rider extends EventEmitter {
             location: [this.location.x, this.location.y],
             destination: [this.destination.x, this.destination.y]
         } as offerAccept))
-        
+
         for (let offer of this.offers) {
             if (offer !== msg) {
                 this.rejectRide(offer)
