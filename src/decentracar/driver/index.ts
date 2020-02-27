@@ -1,11 +1,11 @@
-import { EcdsaKey, ChainTree, Community, CommunityMessenger, setDataTransaction } from 'tupelo-wasm-sdk';
+import { EcdsaKey, ChainTree, Community, setDataTransaction } from 'tupelo-wasm-sdk';
 import faker from 'faker';
 import Vector from '../util/vector'
 import { EventEmitter } from 'events';
-import { Envelope } from 'tupelo-messages';
-import { certificationTopic, ridersTopic, messageType, serialize, dropoff, riding, deserialize, offer, dcMessage, offerAccept, didRegistration } from '../messages';
+import { Messenger } from "../messages";
+import { certificationTopic, ridersTopic, messageType, serialize, dropoff, riding, deserialize, offer, dcMessage, offerAccept, didRegistration, rideRequest } from '../messages';
 import { SimpleSyncher } from '../util/actor';
-import {emittingLogger} from "../util/emittinglogger";
+import { emittingLogger } from "../util/emittinglogger";
 
 const log = emittingLogger('decentracar:driver')
 
@@ -34,12 +34,12 @@ export class Driver extends EventEmitter {
     acceptedRider?: string
     destination?: Vector
     offering: boolean
-    hasRider:boolean
+    hasRider: boolean
     registered: boolean
 
-    private messenger?: CommunityMessenger
+    private messenger?: Messenger
     private startPromise?: Promise<Driver>
-    private syncher:SimpleSyncher
+    private syncher: SimpleSyncher
 
     constructor(opts: IDriverOpts) {
         super();
@@ -69,7 +69,7 @@ export class Driver extends EventEmitter {
                 return
             }
             this.id = id
-            this.messenger = new CommunityMessenger("integrationtest", 32, this.key, Buffer.from(this.id, 'utf8'), community.node.pubsub)
+            this.messenger = new Messenger(community.node.pubsub)
             this.messenger.subscribe(this.id, this.handleSelfMessages.bind(this))
             this.messenger.subscribe(ridersTopic, this.handleRidersMessage.bind(this))
             await this.registerAsDriver()
@@ -81,43 +81,46 @@ export class Driver extends EventEmitter {
 
     async registerAsDriver() {
         log(this.name, " registering as driver")
-        if (this.messenger === undefined || this.tree === undefined) {
-            throw new Error("need a tree and messenger to registerAsDriver")
+        if (this.messenger === undefined || this.tree === undefined || this.id === undefined) {
+            throw new Error("need a tree, id, and messenger to registerAsDriver")
         }
         const c = await this.community
         await c.playTransactions(this.tree, [setDataTransaction("_decentracar/type", "driver")])
         await c.nextUpdate()
         this.messenger.publish(certificationTopic, serialize({
             type: messageType.didRegistration,
+            from: Buffer.from(this.id, 'utf8'),
             did: this.id,
         } as didRegistration))
     }
 
-    async handleRidersMessage(env: Envelope) {
+    async handleRidersMessage(payload: Uint8Array) {
         if (this.offering) {
             return // ignore other messages for now
         }
         if (this.messenger === undefined || this.tree === undefined || this.id === undefined) {
-            throw new Error("need an id, tree and messenger to registerAsDriver")
+            throw new Error("need an tree, id and messenger to handleRidersMessage")
         }
         // TODO: make a decision if the car should offer or not
         this.offering = true
         const c = await this.community
-        await c.playTransactions(this.tree, [setDataTransaction("_decentracar/offering", Buffer.from(env.getFrom_asU8()).toString())])
+
+        const msg: rideRequest = deserialize(payload)
+        await c.playTransactions(this.tree, [setDataTransaction("_decentracar/offering", Buffer.from(msg.from).toString())])
         log(this.name, " offering a ride")
 
-        this.messenger.publish(Buffer.from(env.getFrom_asU8()).toString(), serialize({
+        this.messenger.publish(Buffer.from(msg.from).toString(), serialize({
             type: messageType.offer,
             driverDid: this.id,
             driverLocation: [this.location.x, this.location.y],
         } as offer))
     }
 
-    async handleSelfMessages(env: Envelope) {
+    async handleSelfMessages(payload: Uint8Array) {
         if (this.messenger === undefined || this.tree === undefined || this.id === undefined) {
             throw new Error("need an id, tree and messenger to handleSelfMessages")
         }
-        const msg: dcMessage = deserialize(env.getPayload_asU8())
+        const msg: dcMessage = deserialize(payload)
         switch (msg.type) {
             case messageType.didRegistration:
                 this.registered = true // for now, for real we'd have to check this
@@ -138,7 +141,7 @@ export class Driver extends EventEmitter {
                 this.riderLocation = new Vector(typedMsg.location[0], typedMsg.location[1])
                 this.destination = new Vector(typedMsg.destination[0], typedMsg.destination[1])
                 const c = await this.community
-                this.syncher.send(()=> {
+                this.syncher.send(() => {
                     if (this.tree === undefined) {
                         throw new Error("undefined tree")
                     }
@@ -170,7 +173,7 @@ export class Driver extends EventEmitter {
                 this.hasRider = false
                 this.riderLocation = undefined
                 const c = await this.community
-                await this.syncher.send(()=> {
+                await this.syncher.send(() => {
                     if (this.tree === undefined) {
                         throw new Error("undefined tree")
                     }
@@ -196,7 +199,7 @@ export class Driver extends EventEmitter {
                 } as riding))
                 this.follow(this.destination, ARRIVAL_DIST) //TODO: not sure what the arrival number should be
             }
-           
+
 
         } else {
             this.emit('wandering')
@@ -224,7 +227,7 @@ export class Driver extends EventEmitter {
             dest.setMag(MAX_SPEED);
         }
 
-        
+
 
         this.applyForce(dest.limit(MAX_FORCE * 2));
     }

@@ -1,10 +1,9 @@
-import { Community, EcdsaKey, ChainTree, CID, CommunityMessenger, setDataTransaction } from "tupelo-wasm-sdk";
-import { Envelope } from "tupelo-messages";
-import { messageType, didRegistration, deserialize, serialize } from "../messages";
+import { Community, EcdsaKey, ChainTree, CID, setDataTransaction } from "tupelo-wasm-sdk";
+import { Messenger, messageType, didRegistration, deserialize, serialize } from "../messages";
 import { EventEmitter } from "events";
 import { certificationTopic } from '../messages'
 import { SimpleSyncher } from "../util/actor";
-import {emittingLogger} from '../util/emittinglogger';
+import { emittingLogger } from '../util/emittinglogger';
 
 const log = emittingLogger("decentracar:company")
 
@@ -24,7 +23,7 @@ export class DecentraCarService extends EventEmitter {
     key: EcdsaKey
     tree?: ChainTree
     private did: string
-    private messenger?: CommunityMessenger
+    private messenger?: Messenger
     private syncher: SimpleSyncher
 
     constructor(opts: IDecentraCarServiceOptions) {
@@ -37,20 +36,21 @@ export class DecentraCarService extends EventEmitter {
 
     async start() {
         await this._findOrCreateTree()
-        this.messenger = new CommunityMessenger("integrationtest", 32, this.key, (await this.id()), this.community.node.pubsub)
+        this.messenger = new Messenger(this.community.node.pubsub)
+
         return this.messenger.subscribe(certificationTopic, this.handleRegistration.bind(this))
     }
 
-    private async handleRegistration(env: Envelope) {
+    private async handleRegistration(payload: Uint8Array) {
         if (this.tree === undefined || this.messenger === undefined) {
             throw new Error("handling a message on a service without a tree or messenger")
         }
-        const msg: didRegistration = deserialize(env.getPayload_asU8())
+        const msg: didRegistration = deserialize(payload)
         const did = msg.did
 
         let tryCount = 0
 
-        const getTip = async ()=> {
+        const getTip = async () => {
             let tip
 
             try {
@@ -69,11 +69,11 @@ export class DecentraCarService extends EventEmitter {
         getTip()
     }
 
-    private async handleNew(tip:any, msg:didRegistration) {
+    private async handleNew(tip: any, msg: didRegistration) {
         if (this.tree === undefined || this.messenger === undefined) {
             throw new Error("handling a message on a service without a tree or messenger")
         }
-        
+
         const did = msg.did
         let tree = new ChainTree({
             tip: new CID(tip),
@@ -89,7 +89,7 @@ export class DecentraCarService extends EventEmitter {
                     return this.community.playTransactions(this.tree, [setDataTransaction("/_decentracar/validatedriders/" + did, true)])
                 })
                 log("registered new rider: ", did)
-                this.messenger.publish(did, serialize({ type: messageType.didRegistration, did: did } as didRegistration))
+                this.messenger.publish(did, serialize({ type: messageType.didRegistration, from: (await this.id()), did: did } as didRegistration))
                 this.emit('rider', did)
                 break;
             case "driver":
@@ -101,7 +101,7 @@ export class DecentraCarService extends EventEmitter {
                     return
                 })
                 log("registered new driver: ", did)
-                this.messenger.publish(did, serialize({ type: messageType.didRegistration, did: did } as didRegistration))
+                this.messenger.publish(did, serialize({ type: messageType.didRegistration, from: (await this.id()), did: did } as didRegistration))
                 this.emit('driver', did)
                 break;
             default:
@@ -129,7 +129,7 @@ export class DecentraCarService extends EventEmitter {
                 // do nothing
             }
         }
-        if (CID.isCID(tip)) {
+        if (tip !== undefined && CID.isCID(tip)) {
             this.tree = new ChainTree({
                 key: this.key,
                 tip: tip,

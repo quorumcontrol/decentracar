@@ -20,7 +20,7 @@ export class Simulation extends EventEmitter {
     private interval?: number
     community: Promise<Community>
     tickCount: number
-    riderProbability:number
+    riderProbability: number
 
     constructor(opts: ISimulationOpts) {
         super()
@@ -65,7 +65,7 @@ export class Simulation extends EventEmitter {
         for (let d of this.drivers) {
             d.start()
         }
-       
+
     }
 
     async tick() {
@@ -90,7 +90,7 @@ export class Simulation extends EventEmitter {
                 location: randomGeo(mapCenter, 5000)
             })
             r.start()
-            r.once('stopped', ()=> {
+            r.once('stopped', () => {
                 let index = this.riders.indexOf(r)
                 this.riders.splice(index, 1)
             })
@@ -98,8 +98,8 @@ export class Simulation extends EventEmitter {
         }
     }
 
-    async tickEvery(milliseconds:number) {
-        setInterval(()=> {
+    async tickEvery(milliseconds: number) {
+        setInterval(() => {
             this.tick()
         }, milliseconds)
     }
